@@ -96,6 +96,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcutTests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   MyDefineShortcut:
     build:
