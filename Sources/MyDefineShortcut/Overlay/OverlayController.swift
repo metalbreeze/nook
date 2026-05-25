@@ -6,10 +6,14 @@ final class OverlayController {
     private var window: OverlayWindow?
     private var keyMonitor: Any?
 
+    /// `onSelect` fires when a thumbnail is chosen (it raises that window).
+    /// `onCancel` fires when the overlay is dismissed without a selection
+    /// (Esc or click-away) — used to restore focus to the original app.
     func show(appName: String,
               thumbnails: [WindowThumbnail],
               on screen: NSScreen,
-              onSelect: @escaping (WindowThumbnail) -> Void) {
+              onSelect: @escaping (WindowThumbnail) -> Void,
+              onCancel: @escaping () -> Void) {
         dismiss()
 
         let root = SnapshotView(
@@ -19,7 +23,10 @@ final class OverlayController {
                 self?.dismiss()
                 onSelect(thumb)
             },
-            onDismiss: { [weak self] in self?.dismiss() }
+            onDismiss: { [weak self] in
+                self?.dismiss()
+                onCancel()
+            }
         )
 
         let win = OverlayWindow(contentRect: screen.frame,
@@ -51,6 +58,7 @@ final class OverlayController {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Esc
                 self?.dismiss()
+                onCancel()
                 return nil
             }
             return event

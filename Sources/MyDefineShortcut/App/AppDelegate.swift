@@ -75,9 +75,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             let screen = NSScreen.main ?? NSScreen.screens.first
             guard let screen else { return }
-            overlay.show(appName: appName, thumbnails: thumbnails, on: screen) { thumb in
-                WindowActivator.activate(thumb.info, pid: thumb.pid)
-            }
+            overlay.show(
+                appName: appName,
+                thumbnails: thumbnails,
+                on: screen,
+                onSelect: { thumb in
+                    WindowActivator.activate(thumb.info, pid: thumb.pid)
+                },
+                onCancel: {
+                    // Esc / click-away: return focus to the app that was
+                    // frontmost when the snapshot was triggered.
+                    NSRunningApplication(processIdentifier: pid)?.activate()
+                }
+            )
         } catch {
             NSLog("MyDefineShortcut snapshot failed: \(error.localizedDescription)")
         }
