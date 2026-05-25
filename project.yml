@@ -1,0 +1,47 @@
+name: MyDefineShortcut
+options:
+  bundleIdPrefix: com.metalbreeze
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_TESTABILITY: YES
+targets:
+  MyDefineShortcut:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/MyDefineShortcut
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcut
+        INFOPLIST_FILE: Resources/Info.plist
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+  MyDefineShortcutTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/MyDefineShortcutTests
+    dependencies:
+      - target: MyDefineShortcut
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcutTests
+schemes:
+  MyDefineShortcut:
+    build:
+      targets:
+        MyDefineShortcut: all
+        MyDefineShortcutTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MyDefineShortcutTests
