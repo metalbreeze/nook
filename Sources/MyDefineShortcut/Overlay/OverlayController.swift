@@ -46,6 +46,7 @@ final class OverlayController {
         win.setFrame(screen.frame, display: true)
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        window = win
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Esc
@@ -54,7 +55,6 @@ final class OverlayController {
             }
             return event
         }
-        window = win
     }
 
     func dismiss() {
