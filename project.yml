@@ -23,6 +23,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcut
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+        # Stable signing identity so TCC (Accessibility + Screen Recording)
+        # grants persist across rebuilds. Ad-hoc signing causes macOS to
+        # re-prompt every launch and drop grants on each rebuild.
+        CODE_SIGN_IDENTITY: "Developer ID Application: Shu Nie (MKSL2N4Y23)"
+        DEVELOPMENT_TEAM: MKSL2N4Y23
   MyDefineShortcutTests:
     type: bundle.unit-test
     platform: macOS
