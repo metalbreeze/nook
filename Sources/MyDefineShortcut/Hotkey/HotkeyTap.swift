@@ -23,6 +23,11 @@ final class HotkeyTap {
             options: .defaultTap,
             eventsOfInterest: mask,
             callback: callback,
+            // SAFETY: passUnretained (not passRetained) is correct because AppDelegate
+            // owns this HotkeyTap for the app's lifetime and always calls stop() — which
+            // disables the tap — before the reference can be released, so no callback can
+            // fire against a freed instance. passRetained here would leak (no balancing
+            // takeRetainedValue in teardown).
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
             return false
