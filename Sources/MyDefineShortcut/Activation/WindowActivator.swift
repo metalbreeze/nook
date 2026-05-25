@@ -31,11 +31,11 @@ enum WindowActivator {
         var posValue: CFTypeRef?
         var sizeValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posValue) == .success,
-           let posValue {
+           let posValue, CFGetTypeID(posValue) == AXValueGetTypeID() {
             AXValueGetValue(posValue as! AXValue, .cgPoint, &origin)
         }
         if AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
-           let sizeValue {
+           let sizeValue, CFGetTypeID(sizeValue) == AXValueGetTypeID() {
             AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
         }
         return CGRect(origin: origin, size: size)
