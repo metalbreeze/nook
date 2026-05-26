@@ -16,9 +16,13 @@ final class SwitcherHotkey {
     var onReverse: (() -> Void)?
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
+    var onWindowLeft: (() -> Void)?
+    var onWindowRight: (() -> Void)?
 
     private static let tabKeyCode: Int64 = 48
     private static let escKeyCode: Int64 = 53
+    private static let leftKeyCode: Int64 = 123
+    private static let rightKeyCode: Int64 = 124
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -83,6 +87,14 @@ final class SwitcherHotkey {
             } else {
                 fire(\.onAdvance)
             }
+            return nil
+        }
+        if keyCode == Self.leftKeyCode {
+            fire(\.onWindowLeft)
+            return nil
+        }
+        if keyCode == Self.rightKeyCode {
+            fire(\.onWindowRight)
             return nil
         }
         if keyCode == Self.escKeyCode {
