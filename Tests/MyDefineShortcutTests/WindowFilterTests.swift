@@ -33,4 +33,19 @@ final class WindowFilterTests: XCTestCase {
         XCTAssertEqual(result.first?.title, "Doc")
         XCTAssertEqual(result.first?.appName, "Safari")
     }
+
+    func test_dropsWindowsOutsideVisibleBounds() {
+        // Single display at the origin. A window mid-Space-switch has slid off to
+        // negative X and must be excluded; the on-screen one is kept.
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let onScreen = RawWindow(windowID: 1, ownerPID: 100, layer: 0, isOnScreen: true,
+                                 title: "On", appName: "App",
+                                 frame: CGRect(x: 213, y: 79, width: 1313, height: 794))
+        let offScreen = RawWindow(windowID: 2, ownerPID: 100, layer: 0, isOnScreen: true,
+                                  title: "Off", appName: "App",
+                                  frame: CGRect(x: -1565, y: 79, width: 1313, height: 794))
+        let result = WindowFilter.visibleWindows(from: [onScreen, offScreen],
+                                                 frontmostPID: 100, visibleBounds: screen)
+        XCTAssertEqual(result.map(\.windowID), [1])
+    }
 }

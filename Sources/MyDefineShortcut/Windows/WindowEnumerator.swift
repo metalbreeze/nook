@@ -7,9 +7,25 @@ enum WindowEnumerator {
     static func filteredSCWindows(forPID pid: pid_t) async throws -> [SCWindow] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let currentSpaceIDs = currentSpaceWindowIDs()
+        let visibleBounds = displayBoundsUnion()
         let raw = content.windows.map { rawWindow(from: $0, currentSpaceIDs: currentSpaceIDs) }
-        let allowedIDs = Set(WindowFilter.visibleWindows(from: raw, frontmostPID: pid).map(\.windowID))
+        let allowedIDs = Set(WindowFilter.visibleWindows(from: raw, frontmostPID: pid, visibleBounds: visibleBounds).map(\.windowID))
         return content.windows.filter { allowedIDs.contains($0.windowID) }
+    }
+
+    /// Union of all active displays' bounds, in the global display coordinate space
+    /// (top-left origin) — the SAME space SCWindow.frame uses, so no Y-flip is needed.
+    /// Used to exclude windows that have slid off-screen during a Space-switch animation.
+    private static func displayBoundsUnion() -> CGRect {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return .infinite }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return .infinite }
+        var union = CGRect.null
+        for display in displays {
+            union = union.union(CGDisplayBounds(display))
+        }
+        return union.isNull ? .infinite : union
     }
 
     static func info(from window: SCWindow) -> WindowInfo {
