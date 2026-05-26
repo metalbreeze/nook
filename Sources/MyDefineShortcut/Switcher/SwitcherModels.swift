@@ -1,5 +1,5 @@
 import AppKit
-import SwiftUI
+import Combine
 
 struct SwitcherApp: Identifiable {
     let pid: pid_t
