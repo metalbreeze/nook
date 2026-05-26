@@ -6,11 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var hotkeyTap: HotkeyTap?
     private let overlay = OverlayController()
+    private let switcher = SwitcherController()
+    private var switcherHotkey: SwitcherHotkey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         ensurePermissions()
         startHotkey()
+        startSwitcher()
     }
 
     private func setupMenuBar() {
@@ -46,6 +49,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PermissionsManager.requestAccessibility()
         }
         hotkeyTap = tap
+    }
+
+    private func startSwitcher() {
+        let hotkey = SwitcherHotkey()
+        hotkey.onOpen = { [weak self] in self?.switcher.open() }
+        hotkey.onAdvance = { [weak self] in self?.switcher.advance() }
+        hotkey.onReverse = { [weak self] in self?.switcher.reverse() }
+        hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
+        hotkey.onCommit = { [weak self] in self?.switcher.commit() }
+        _ = hotkey.start()
+        switcherHotkey = hotkey
     }
 
     @objc private func triggerFromMenu() { handleTrigger() }
