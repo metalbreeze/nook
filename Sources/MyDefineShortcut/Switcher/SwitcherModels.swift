@@ -23,11 +23,15 @@ final class SwitcherModel: ObservableObject {
     @Published var selectedAppIndex: Int
     @Published var windows: [SwitcherWindow]
     @Published var selectedWindowIndex: Int   // -1 = app-level (no window selected)
+    @Published var desktopName: String
+    @Published var isRenaming: Bool
 
     init(apps: [SwitcherApp], selectedAppIndex: Int) {
         self.apps = apps
         self.selectedAppIndex = selectedAppIndex
         self.windows = []
         self.selectedWindowIndex = -1
+        self.desktopName = DesktopNameStore.defaultName
+        self.isRenaming = false
     }
 }
