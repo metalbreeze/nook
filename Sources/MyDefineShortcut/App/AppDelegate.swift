@@ -58,7 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onReverse = { [weak self] in self?.switcher.reverse() }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
-        _ = hotkey.start()
+        if !hotkey.start() {
+            PermissionsManager.requestAccessibility()
+        }
         switcherHotkey = hotkey
     }
 
