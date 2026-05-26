@@ -6,58 +6,64 @@ final class SwitcherController {
     private var window: OverlayWindow?
     private var model: SwitcherModel?
     private var generation = 0
+    private let nameStore = DesktopNameStore()
+    private var spaceID: CGSSpaceID?
 
     func open() {
         let apps = DesktopAppEnumerator.currentDesktopApps()
         guard !apps.isEmpty else { return }
         let model = SwitcherModel(apps: apps, selectedAppIndex: 0)
+        spaceID = CurrentSpace.id()
+        if let spaceID {
+            model.desktopName = nameStore.name(for: spaceID)
+        }
         self.model = model
         showWindow(model: model)
         loadWindows(forAppIndex: 0)
     }
 
     func advance() {
-        guard let model, !model.apps.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.apps.isEmpty else { return }
         model.selectedAppIndex = SwitcherIndex.advance(model.selectedAppIndex, count: model.apps.count)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex)
     }
 
     func reverse() {
-        guard let model, !model.apps.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.apps.isEmpty else { return }
         model.selectedAppIndex = SwitcherIndex.reverse(model.selectedAppIndex, count: model.apps.count)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex)
     }
 
     func windowLeft() {
-        guard let model, !model.windows.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.windows.isEmpty else { return }
         model.selectedWindowIndex = model.selectedWindowIndex < 0
             ? 0
             : SwitcherIndex.reverse(model.selectedWindowIndex, count: model.windows.count)
     }
 
     func windowRight() {
-        guard let model, !model.windows.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.windows.isEmpty else { return }
         model.selectedWindowIndex = model.selectedWindowIndex < 0
             ? 0
             : SwitcherIndex.advance(model.selectedWindowIndex, count: model.windows.count)
     }
 
     func hoverWindow(_ index: Int) {
-        guard let model, model.windows.indices.contains(index) else { return }
+        guard let model, !model.isRenaming, model.windows.indices.contains(index) else { return }
         model.selectedWindowIndex = index
     }
 
     func clickWindow(_ index: Int) {
-        guard let model, model.windows.indices.contains(index) else { return }
+        guard let model, !model.isRenaming, model.windows.indices.contains(index) else { return }
         let win = model.windows[index]
         close()
         WindowActivator.activate(win.info, pid: win.pid)
     }
 
     func commit() {
-        guard let model else { close(); return }
+        guard let model, !model.isRenaming else { return }
         let intent = SwitcherCommit.resolve(selectedWindowIndex: model.selectedWindowIndex,
                                             windowCount: model.windows.count)
         switch intent {
@@ -74,6 +80,20 @@ final class SwitcherController {
     }
 
     func cancel() {
+        close()
+    }
+
+    func beginRename() {
+        guard let model else { return }
+        model.isRenaming = true
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func finishRename(save: Bool, newName: String) {
+        if save, let spaceID {
+            nameStore.setName(newName, for: spaceID)
+        }
         close()
     }
 
