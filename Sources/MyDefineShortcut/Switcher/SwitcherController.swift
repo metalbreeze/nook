@@ -51,9 +51,9 @@ final class SwitcherController {
 
     func clickWindow(_ index: Int) {
         guard let model, model.windows.indices.contains(index) else { return }
-        let window = model.windows[index]
+        let win = model.windows[index]
         close()
-        WindowActivator.activate(window.info, pid: window.pid)
+        WindowActivator.activate(win.info, pid: win.pid)
     }
 
     func commit() {
@@ -62,9 +62,9 @@ final class SwitcherController {
                                             windowCount: model.windows.count)
         switch intent {
         case .window(let index):
-            let window = model.windows[index]
+            let win = model.windows[index]
             close()
-            WindowActivator.activate(window.info, pid: window.pid)
+            WindowActivator.activate(win.info, pid: win.pid)
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
