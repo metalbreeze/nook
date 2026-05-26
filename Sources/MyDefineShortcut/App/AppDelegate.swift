@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onOpen = { [weak self] in self?.switcher.open() }
         hotkey.onAdvance = { [weak self] in self?.switcher.advance() }
         hotkey.onReverse = { [weak self] in self?.switcher.reverse() }
+        hotkey.onWindowLeft = { [weak self] in self?.switcher.windowLeft() }
+        hotkey.onWindowRight = { [weak self] in self?.switcher.windowRight() }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
         if !hotkey.start() {
