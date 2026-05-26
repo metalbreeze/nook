@@ -18,11 +18,15 @@ final class SwitcherHotkey {
     var onCommit: (() -> Void)?
     var onWindowLeft: (() -> Void)?
     var onWindowRight: (() -> Void)?
+    var onWindowNumber: ((Int) -> Void)?
 
     private static let tabKeyCode: Int64 = 48
     private static let escKeyCode: Int64 = 53
     private static let leftKeyCode: Int64 = 123
     private static let rightKeyCode: Int64 = 124
+    private static let digitKeyCodes: [Int64: Int] = [
+        18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+    ]
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -100,6 +104,11 @@ final class SwitcherHotkey {
         if keyCode == Self.escKeyCode {
             active = false
             fire(\.onCancel)
+            return nil
+        }
+        if let number = Self.digitKeyCodes[keyCode] {
+            let callback = onWindowNumber
+            DispatchQueue.main.async { callback?(number) }
             return nil
         }
         return Unmanaged.passUnretained(event)
