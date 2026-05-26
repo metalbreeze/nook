@@ -114,14 +114,19 @@ final class SwitcherController {
         win.backgroundColor = .clear
         win.level = .screenSaver
         win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        win.ignoresMouseEvents = true
+        win.ignoresMouseEvents = false // switcher window thumbnails are clickable
 
-        let hosting = NSHostingView(rootView: SwitcherView(model: model))
+        let root = SwitcherView(
+            model: model,
+            onHoverWindow: { [weak self] index in self?.hoverWindow(index) },
+            onClickWindow: { [weak self] index in self?.clickWindow(index) }
+        )
+        let hosting = FirstMouseHostingView(rootView: root)
         hosting.frame = screen.frame
         hosting.autoresizingMask = [.width, .height]
         win.contentView = hosting
         win.setFrame(screen.frame, display: true)
-        win.orderFrontRegardless() // show on top WITHOUT activating our app / stealing focus
+        win.orderFrontRegardless() // show on top WITHOUT activating our app
         window = win
     }
 
