@@ -58,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onReverse = { [weak self] in self?.switcher.reverse() }
         hotkey.onWindowLeft = { [weak self] in self?.switcher.windowLeft() }
         hotkey.onWindowRight = { [weak self] in self?.switcher.windowRight() }
+        hotkey.onWindowNumber = { [weak self] number in self?.switcher.selectWindow(number: number) }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
         if !hotkey.start() {

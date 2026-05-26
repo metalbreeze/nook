@@ -62,6 +62,15 @@ final class SwitcherController {
         WindowActivator.activate(win.info, pid: win.pid)
     }
 
+    func selectWindow(number: Int) {
+        guard let model, !model.isRenaming else { return }
+        let index = number - 1
+        guard model.windows.indices.contains(index) else { return }
+        let win = model.windows[index]
+        close()
+        WindowActivator.activate(win.info, pid: win.pid)
+    }
+
     func commit() {
         guard let model, !model.isRenaming else { return }
         let intent = SwitcherCommit.resolve(selectedWindowIndex: model.selectedWindowIndex,
