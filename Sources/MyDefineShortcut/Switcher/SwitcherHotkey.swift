@@ -4,8 +4,8 @@ import CoreGraphics
 /// scoped by the controller to current-desktop apps.
 ///
 /// Idle: Cmd+Tab keyDown opens the switcher (swallowed).
-/// Active: Tab advances, Shift+Tab reverses, Esc cancels (all swallowed);
-///         releasing Cmd commits. Requires Accessibility.
+/// Active: Tab advances, Shift+Tab reverses, Left/Right select a window,
+///         Esc cancels (all swallowed); releasing Cmd commits. Requires Accessibility.
 final class SwitcherHotkey {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
