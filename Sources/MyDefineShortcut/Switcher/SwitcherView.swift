@@ -86,6 +86,11 @@ struct SwitcherView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
+    private func numberedTitle(_ win: SwitcherWindow, index: Int) -> String {
+        let base = win.title.isEmpty ? "Untitled" : win.title
+        return index < 9 ? "\(index + 1)  \(base)" : base
+    }
+
     @ViewBuilder
     private func windowThumb(_ win: SwitcherWindow, selected: Bool, index: Int) -> some View {
         VStack(spacing: 6) {
@@ -102,7 +107,7 @@ struct SwitcherView: View {
             }
             .frame(width: 200, height: 130)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            Text(win.title.isEmpty ? "Untitled" : win.title)
+            Text(numberedTitle(win, index: index))
                 .font(.caption)
                 .foregroundStyle(.white)
                 .lineLimit(1)
