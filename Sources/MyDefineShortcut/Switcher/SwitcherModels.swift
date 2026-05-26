@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreGraphics
 
 struct SwitcherApp: Identifiable {
     let pid: pid_t
@@ -8,12 +9,25 @@ struct SwitcherApp: Identifiable {
     var id: pid_t { pid }
 }
 
+struct SwitcherWindow: Identifiable {
+    let windowID: CGWindowID
+    let title: String
+    let info: WindowInfo
+    let pid: pid_t
+    var image: CGImage?
+    var id: CGWindowID { windowID }
+}
+
 final class SwitcherModel: ObservableObject {
     @Published var apps: [SwitcherApp]
-    @Published var selectedIndex: Int
+    @Published var selectedAppIndex: Int
+    @Published var windows: [SwitcherWindow]
+    @Published var selectedWindowIndex: Int   // -1 = app-level (no window selected)
 
-    init(apps: [SwitcherApp], selectedIndex: Int) {
+    init(apps: [SwitcherApp], selectedAppIndex: Int) {
         self.apps = apps
-        self.selectedIndex = selectedIndex
+        self.selectedAppIndex = selectedAppIndex
+        self.windows = []
+        self.selectedWindowIndex = -1
     }
 }

@@ -4,8 +4,8 @@ struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
 
     private var selectedName: String {
-        guard model.apps.indices.contains(model.selectedIndex) else { return "" }
-        return model.apps[model.selectedIndex].name
+        guard model.apps.indices.contains(model.selectedAppIndex) else { return "" }
+        return model.apps[model.selectedAppIndex].name
     }
 
     var body: some View {
@@ -14,7 +14,7 @@ struct SwitcherView: View {
             VStack(spacing: 14) {
                 HStack(spacing: 16) {
                     ForEach(Array(model.apps.enumerated()), id: \.element.id) { index, app in
-                        icon(for: app, selected: index == model.selectedIndex)
+                        icon(for: app, selected: index == model.selectedAppIndex)
                     }
                 }
                 Text(selectedName)

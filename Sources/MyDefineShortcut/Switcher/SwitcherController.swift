@@ -10,28 +10,28 @@ final class SwitcherController {
     func open() {
         let apps = DesktopAppEnumerator.currentDesktopApps()
         guard !apps.isEmpty else { return }
-        let model = SwitcherModel(apps: apps, selectedIndex: 0)
+        let model = SwitcherModel(apps: apps, selectedAppIndex: 0)
         self.model = model
         showWindow(model: model)
     }
 
     func advance() {
         guard let model, !model.apps.isEmpty else { return }
-        model.selectedIndex = SwitcherIndex.advance(model.selectedIndex, count: model.apps.count)
+        model.selectedAppIndex = SwitcherIndex.advance(model.selectedAppIndex, count: model.apps.count)
     }
 
     func reverse() {
         guard let model, !model.apps.isEmpty else { return }
-        model.selectedIndex = SwitcherIndex.reverse(model.selectedIndex, count: model.apps.count)
+        model.selectedAppIndex = SwitcherIndex.reverse(model.selectedAppIndex, count: model.apps.count)
     }
 
     /// Releasing Cmd: switch to the highlighted app and close.
     func commit() {
-        guard let model, model.apps.indices.contains(model.selectedIndex) else {
+        guard let model, model.apps.indices.contains(model.selectedAppIndex) else {
             close()
             return
         }
-        let pid = model.apps[model.selectedIndex].pid
+        let pid = model.apps[model.selectedAppIndex].pid
         close()
         NSRunningApplication(processIdentifier: pid)?.activate()
     }
