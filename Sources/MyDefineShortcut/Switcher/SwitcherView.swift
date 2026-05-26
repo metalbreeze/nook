@@ -4,6 +4,11 @@ struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     let onHoverWindow: (Int) -> Void
     let onClickWindow: (Int) -> Void
+    let onBeginRename: () -> Void
+    let onFinishRename: (Bool, String) -> Void
+
+    @State private var editName: String = ""
+    @FocusState private var nameFieldFocused: Bool
 
     private var selectedName: String {
         guard model.apps.indices.contains(model.selectedAppIndex) else { return "" }
@@ -14,6 +19,8 @@ struct SwitcherView: View {
         VStack {
             Spacer()
             VStack(spacing: 18) {
+                nameRow
+
                 HStack(spacing: 16) {
                     ForEach(Array(model.apps.enumerated()), id: \.element.id) { index, app in
                         appIcon(app, selected: index == model.selectedAppIndex)
@@ -38,6 +45,30 @@ struct SwitcherView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var nameRow: some View {
+        if model.isRenaming {
+            TextField("Desktop name", text: $editName)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 240)
+                .focused($nameFieldFocused)
+                .onAppear {
+                    editName = model.desktopName
+                    nameFieldFocused = true
+                }
+                .onSubmit { onFinishRename(true, editName) }
+                .onExitCommand { onFinishRename(false, editName) }
+        } else {
+            HStack(spacing: 10) {
+                Text(model.desktopName)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Button("Rename") { onBeginRename() }
+                    .buttonStyle(.bordered)
+            }
+        }
     }
 
     @ViewBuilder
