@@ -8,6 +8,7 @@ final class SwitcherController {
     private var generation = 0
     private let nameStore = DesktopNameStore()
     private var spaceID: CGSSpaceID?
+    var onDesktopRenamed: (() -> Void)?
 
     func open() {
         let apps = DesktopAppEnumerator.currentDesktopApps()
@@ -102,6 +103,7 @@ final class SwitcherController {
     func finishRename(save: Bool, newName: String) {
         if save, let spaceID {
             nameStore.setName(newName, for: spaceID)
+            onDesktopRenamed?()
         }
         close()
     }
