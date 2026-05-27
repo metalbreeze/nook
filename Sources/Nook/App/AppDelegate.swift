@@ -142,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             )
         } catch {
-            NSLog("MyDefineShortcut snapshot failed: \(error.localizedDescription)")
+            NSLog("Nook snapshot failed: \(error.localizedDescription)")
         }
     }
 }

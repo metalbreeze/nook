@@ -3,4 +3,4 @@ build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
-MyDefineShortcut.xcodeproj/
+*.xcodeproj/

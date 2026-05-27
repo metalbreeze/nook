@@ -1,5 +1,5 @@
 import XCTest
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class DesktopAppListTests: XCTestCase {
     private func win(_ pid: pid_t, layer: Int = 0, onScreen: Bool = true) -> RawAppWindow {

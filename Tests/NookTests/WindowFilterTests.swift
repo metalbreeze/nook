@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class WindowFilterTests: XCTestCase {
     private func raw(id: CGWindowID, pid: pid_t, layer: Int = 0, onScreen: Bool = true,

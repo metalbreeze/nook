@@ -1,5 +1,5 @@
 import XCTest
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class MenuBarPreferencesTests: XCTestCase {
     private var defaults: UserDefaults!

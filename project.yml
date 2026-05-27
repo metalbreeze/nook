@@ -1,4 +1,4 @@
-name: MyDefineShortcut
+name: Nook
 options:
   bundleIdPrefix: com.metalbreeze
   createIntermediateGroups: true
@@ -13,14 +13,14 @@ settings:
     ENABLE_HARDENED_RUNTIME: NO
     ENABLE_TESTABILITY: YES
 targets:
-  MyDefineShortcut:
+  Nook:
     type: application
     platform: macOS
     sources:
-      - Sources/MyDefineShortcut
+      - Sources/Nook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcut
+        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.Nook
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
         # Stable signing identity so TCC (Accessibility + Screen Recording)
@@ -28,26 +28,34 @@ targets:
         # re-prompt every launch and drop grants on each rebuild.
         CODE_SIGN_IDENTITY: "Developer ID Application: Shu Nie (MKSL2N4Y23)"
         DEVELOPMENT_TEAM: MKSL2N4Y23
-  MyDefineShortcutTests:
+      configs:
+        # Hardened Runtime is required for notarization, but enabling it for
+        # Debug breaks `xcodebuild test`: the host app enforces library
+        # validation, and the ad-hoc-signed test bundle (different Team ID)
+        # then fails to load. So we enable it only for the Release build that
+        # actually gets notarized.
+        Release:
+          ENABLE_HARDENED_RUNTIME: YES
+  NookTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - Tests/MyDefineShortcutTests
+      - Tests/NookTests
     dependencies:
-      - target: MyDefineShortcut
+      - target: Nook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.MyDefineShortcutTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.NookTests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  MyDefineShortcut:
+  Nook:
     build:
       targets:
-        MyDefineShortcut: all
-        MyDefineShortcutTests: [test]
+        Nook: all
+        NookTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - MyDefineShortcutTests
+        - NookTests

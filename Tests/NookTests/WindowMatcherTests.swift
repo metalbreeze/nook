@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class WindowMatcherTests: XCTestCase {
     private func target(title: String = "Doc", x: CGFloat = 100, y: CGFloat = 100,

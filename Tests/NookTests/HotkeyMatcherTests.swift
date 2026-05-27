@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class HotkeyMatcherTests: XCTestCase {
     func test_matchesControlDownArrow() {

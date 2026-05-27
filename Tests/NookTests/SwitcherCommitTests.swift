@@ -1,5 +1,5 @@
 import XCTest
-@testable import MyDefineShortcut
+@testable import Nook
 
 final class SwitcherCommitTests: XCTestCase {
     func test_noWindowSelected_isApp() {
