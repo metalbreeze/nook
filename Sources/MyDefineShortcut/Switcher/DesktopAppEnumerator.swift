@@ -16,6 +16,7 @@ enum DesktopAppEnumerator {
 
     private static func onScreenWindows() -> [RawAppWindow] {
         let selfPID = ProcessInfo.processInfo.processIdentifier
+        let visibleBounds = DisplayBounds.union()
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let infoList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []
@@ -25,7 +26,16 @@ enum DesktopAppEnumerator {
             let pid = pid_t(pidNumber.int32Value)
             guard pid != selfPID else { return nil }
             let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? -1
-            return RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: true)
+            // A window mid Space-switch has slid off all displays; mark it off-screen so
+            // DesktopAppList's isOnScreen filter excludes its app (no other-desktop leakage).
+            let onScreen: Bool
+            if let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+               let frame = CGRect(dictionaryRepresentation: boundsDict) {
+                onScreen = frame.intersects(visibleBounds)
+            } else {
+                onScreen = true
+            }
+            return RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: onScreen)
         }
     }
 }
