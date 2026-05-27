@@ -36,6 +36,12 @@ targets:
         # actually gets notarized.
         Release:
           ENABLE_HARDENED_RUNTIME: YES
+          # Notarization requires a secure (Apple-server) timestamp in the
+          # signature; a plain build omits it.
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          # Don't inject the debug base entitlements — they add
+          # com.apple.security.get-task-allow, which notarization rejects.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
   NookTests:
     type: bundle.unit-test
     platform: macOS
