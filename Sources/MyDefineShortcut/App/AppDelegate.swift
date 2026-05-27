@@ -8,20 +8,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayController()
     private let switcher = SwitcherController()
     private var switcherHotkey: SwitcherHotkey?
+    private let nameStore = DesktopNameStore()
+    private let menuBarPrefs = MenuBarPreferences()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         ensurePermissions()
         startHotkey()
         startSwitcher()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(activeSpaceChanged),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil
+        )
+        updateMenuBarTitle()
     }
 
     private func setupMenuBar() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "macwindow.on.rectangle",
                                      accessibilityDescription: "Window Snapshot")
+        item.button?.imagePosition = .imageLeading
         let menu = NSMenu()
         menu.addItem(withTitle: "Trigger Snapshot", action: #selector(triggerFromMenu), keyEquivalent: "")
+        menu.addItem(.separator())
+        let nameToggle = NSMenuItem(title: "Show Desktop Name in Menu Bar",
+                                    action: #selector(toggleDesktopName(_:)),
+                                    keyEquivalent: "")
+        nameToggle.state = menuBarPrefs.showDesktopName ? .on : .off
+        menu.addItem(nameToggle)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Accessibility Settings…", action: #selector(openAX), keyEquivalent: "")
         menu.addItem(withTitle: "Screen Recording Settings…", action: #selector(openSR), keyEquivalent: "")
@@ -61,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onWindowNumber = { [weak self] number in self?.switcher.selectWindow(number: number) }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
+        switcher.onDesktopRenamed = { [weak self] in self?.updateMenuBarTitle() }
         if !hotkey.start() {
             PermissionsManager.requestAccessibility()
         }
@@ -70,6 +87,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func triggerFromMenu() { handleTrigger() }
     @objc private func openAX() { PermissionsManager.openAccessibilitySettings() }
     @objc private func openSR() { PermissionsManager.openScreenRecordingSettings() }
+
+    private func updateMenuBarTitle() {
+        let name: String? = menuBarPrefs.showDesktopName
+            ? CurrentSpace.id().flatMap { nameStore.storedName(for: $0) }
+            : nil
+        statusItem?.button?.title = name ?? ""
+    }
+
+    @objc private func toggleDesktopName(_ sender: NSMenuItem) {
+        menuBarPrefs.showDesktopName.toggle()
+        sender.state = menuBarPrefs.showDesktopName ? .on : .off
+        updateMenuBarTitle()
+    }
+
+    @objc private func activeSpaceChanged() {
+        updateMenuBarTitle()
+    }
 
     private func handleTrigger() {
         guard let frontApp = NSWorkspace.shared.frontmostApplication else { return }
