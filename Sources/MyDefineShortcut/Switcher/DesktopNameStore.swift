@@ -13,8 +13,12 @@ struct DesktopNameStore {
     }
 
     func name(for spaceID: UInt64) -> String {
+        storedName(for: spaceID) ?? Self.defaultName
+    }
+
+    func storedName(for spaceID: UInt64) -> String? {
         let map = defaults.dictionary(forKey: key) as? [String: String] ?? [:]
-        return map[String(spaceID)] ?? Self.defaultName
+        return map[String(spaceID)]
     }
 
     func setName(_ name: String, for spaceID: UInt64) {

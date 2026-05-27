@@ -48,4 +48,15 @@ final class DesktopNameStoreTests: XCTestCase {
         store.setName("  Mail  ", for: 1)
         XCTAssertEqual(store.name(for: 1), "Mail")
     }
+
+    func test_storedName_nilWhenUnset() {
+        let store = DesktopNameStore(defaults: defaults)
+        XCTAssertNil(store.storedName(for: 1))
+    }
+
+    func test_storedName_returnsValueWhenSet() {
+        let store = DesktopNameStore(defaults: defaults)
+        store.setName("Work", for: 1)
+        XCTAssertEqual(store.storedName(for: 1), "Work")
+    }
 }
