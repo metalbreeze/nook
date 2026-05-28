@@ -166,8 +166,18 @@ final class SwitcherController {
             close()
             WindowActivator.activate(win.info, pid: win.pid)
         case .switchSpace(let target, let uuid):
+            // Also activate the previewed desktop's selected app so the
+            // frontmost-app context follows the Space switch — otherwise
+            // the pre-Cmd+Tab app stays NSApp.frontmost on the new Space
+            // and looks like it "came along".
+            let appPID: pid_t? = model.apps.indices.contains(model.selectedAppIndex)
+                ? model.apps[model.selectedAppIndex].pid
+                : nil
             close()
             SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+            if let pid = appPID {
+                NSRunningApplication(processIdentifier: pid)?.activate()
+            }
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
