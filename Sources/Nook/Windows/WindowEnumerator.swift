@@ -13,6 +13,31 @@ enum WindowEnumerator {
         return content.windows.filter { allowedIDs.contains($0.windowID) }
     }
 
+    /// Same as `filteredSCWindows(forPID:)` but the on-Space filter is the
+    /// explicit `spaceID` rather than the active Space. Used by the preview
+    /// path in the Cmd+Tab switcher.
+    static func filteredSCWindows(forPID pid: pid_t,
+                                  onSpace spaceID: CGSSpaceID) async throws -> [SCWindow] {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        let allowed = WindowsOnSpace.windowIDs(on: spaceID)
+        let visibleBounds = DisplayBounds.union()
+        let raw = content.windows.map { rawWindow(from: $0, onSpaceIDs: allowed) }
+        let allowedIDs = Set(WindowFilter.visibleWindows(from: raw,
+                                                          frontmostPID: pid,
+                                                          visibleBounds: visibleBounds).map(\.windowID))
+        return content.windows.filter { allowedIDs.contains($0.windowID) }
+    }
+
+    private static func rawWindow(from window: SCWindow, onSpaceIDs: Set<CGWindowID>) -> RawWindow {
+        RawWindow(windowID: window.windowID,
+                  ownerPID: pid_t(window.owningApplication?.processID ?? 0),
+                  layer: window.windowLayer,
+                  isOnScreen: onSpaceIDs.contains(window.windowID),
+                  title: window.title ?? "",
+                  appName: window.owningApplication?.applicationName ?? "",
+                  frame: window.frame)
+    }
+
     static func info(from window: SCWindow) -> WindowInfo {
         WindowInfo(windowID: window.windowID,
                    title: window.title ?? "",
