@@ -21,6 +21,7 @@ final class SwitcherHotkey {
     var onWindowNumber: ((Int) -> Void)?
     var onDesktopPrev: (() -> Void)?
     var onDesktopNext: (() -> Void)?
+    var onDesktopNumber: ((Int) -> Void)?
 
     private static let tabKeyCode: Int64 = 48
     private static let escKeyCode: Int64 = 53
@@ -31,6 +32,7 @@ final class SwitcherHotkey {
     ]
     private static let leftBracketKeyCode: Int64 = 33   // [
     private static let rightBracketKeyCode: Int64 = 30  // ]
+    private static let backtickKeyCode: Int64 = 50   // `
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -113,9 +115,22 @@ final class SwitcherHotkey {
             fire(\.onDesktopPrev)
             return nil
         }
+        if keyCode == Self.backtickKeyCode {
+            if flags.contains(.maskShift) {
+                fire(\.onDesktopNext)
+            } else {
+                fire(\.onDesktopPrev)
+            }
+            return nil
+        }
         if keyCode == Self.escKeyCode {
             active = false
             fire(\.onCancel)
+            return nil
+        }
+        if let number = Self.digitKeyCodes[keyCode], flags.contains(.maskShift) {
+            let callback = onDesktopNumber
+            DispatchQueue.main.async { callback?(number) }
             return nil
         }
         if let number = Self.digitKeyCodes[keyCode] {
