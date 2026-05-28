@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onWindowLeft = { [weak self] in self?.switcher.windowLeft() }
         hotkey.onWindowRight = { [weak self] in self?.switcher.windowRight() }
         hotkey.onWindowNumber = { [weak self] number in self?.switcher.selectWindow(number: number) }
+        hotkey.onDesktopPrev = { [weak self] in self?.switcher.desktopPrev() }
+        hotkey.onDesktopNext = { [weak self] in self?.switcher.desktopNext() }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
         switcher.onDesktopRenamed = { [weak self] in self?.updateMenuBarTitle() }
