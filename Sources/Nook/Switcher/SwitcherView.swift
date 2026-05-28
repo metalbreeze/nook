@@ -59,7 +59,7 @@ struct SwitcherView: View {
             HStack(spacing: 10) {
                 ForEach(Array(model.desktops.enumerated()), id: \.element.id) { idx, desktop in
                     desktopChip(desktop, onClick: { onClickDesktop(idx) })
-                    if desktop.isCurrent {
+                    if desktop.isPreviewed {
                         Button("Rename") { onBeginRename() }
                             .buttonStyle(.bordered)
                     }
@@ -102,16 +102,20 @@ struct SwitcherView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(desktop.isCurrent ? Color.white.opacity(0.25) : Color.clear)
+            .background(desktop.isPreviewed ? Color.white.opacity(0.25) : Color.clear)
+            .overlay(
+                Capsule()
+                    .stroke(desktop.isReal ? Color.white.opacity(0.6) : Color.clear,
+                            lineWidth: 1.5)
+            )
             .clipShape(Capsule())
             .contentShape(Capsule())
             .onHover { hovering in
-                // The current chip stays at its highlight; non-current chips
-                // get no hover affordance to keep the row visually calm
-                // (window thumbs already provide hover feedback elsewhere).
+                // Intentional: chip row stays visually calm; window thumbs already
+                // provide hover feedback elsewhere.
                 _ = hovering
             }
-            .onTapGesture { if !desktop.isCurrent { onClick() } }
+            .onTapGesture { if !desktop.isReal { onClick() } }
     }
 
     @ViewBuilder

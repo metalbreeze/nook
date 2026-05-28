@@ -20,19 +20,23 @@ final class SwitcherController {
         let screen = NSScreen.main ?? NSScreen.screens.first
         let entries = screen.map { DesktopEnumerator.desktopsForCurrentScreen($0) } ?? []
         let desktopVMs: [DesktopVM] = entries.map { entry in
-            DesktopVM(
+            let isCurrent = entry.spaceID == currentSpaceID
+            return DesktopVM(
                 id: entry.spaceID,
                 label: DesktopLabel.label(
                     index: entry.indexInDisplay,
                     storedName: nameStore.storedName(for: entry.spaceID)
                 ),
                 displayUUID: entry.displayUUID,
-                isCurrent: entry.spaceID == currentSpaceID
+                isPreviewed: isCurrent,
+                isReal: isCurrent
             )
         }
         let model = SwitcherModel(apps: apps,
                                   selectedAppIndex: 0,
                                   desktops: desktopVMs)
+        model.previewedSpaceID = currentSpaceID
+        model.realSpaceID = currentSpaceID
         if let currentSpaceID {
             model.desktopName = nameStore.name(for: currentSpaceID)
         }
@@ -94,7 +98,7 @@ final class SwitcherController {
         guard let model, !model.isRenaming else { return }
         guard model.desktops.indices.contains(index) else { return }
         let target = model.desktops[index]
-        if target.isCurrent { return }      // no-op on the current chip
+        if target.isReal { return }      // already on this desktop
         close()
         SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
     }
@@ -107,29 +111,33 @@ final class SwitcherController {
         guard let model else { return }
         guard model.desktops.indices.contains(index) else { return }
         let target = model.desktops[index]
-        if target.isCurrent { return }
+        if target.isPreviewed { return }
         didNavigateDesktop = true
         spaceID = target.id
+        model.previewedSpaceID = target.id
+        model.realSpaceID = target.id
         model.desktopName = nameStore.name(for: target.id)
         model.desktops = model.desktops.map { vm in
-            DesktopVM(id: vm.id,
-                      label: vm.label,
-                      displayUUID: vm.displayUUID,
-                      isCurrent: vm.id == target.id)
+            let isCurrent = vm.id == target.id
+            return DesktopVM(id: vm.id,
+                             label: vm.label,
+                             displayUUID: vm.displayUUID,
+                             isPreviewed: isCurrent,
+                             isReal: isCurrent)
         }
         SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
     }
 
     func desktopNext() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
-        let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
+        let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)
         advanceToDesktop(at: next)
     }
 
     func desktopPrev() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
-        let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
+        let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let prev = SwitcherIndex.reverse(currentIdx, count: model.desktops.count)
         advanceToDesktop(at: prev)
     }
