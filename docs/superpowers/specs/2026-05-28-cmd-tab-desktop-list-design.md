@@ -37,9 +37,12 @@ detection (`CurrentSpace`).
 - **Mouse click** on a non-current chip → close the overlay → `SpaceSwitcher`
   switches to that desktop.
 - **Mouse click** on the current chip → no-op (it is already current).
-- **`Cmd+]`** while Cmd is held in switcher mode → switch to the next desktop
-  in the row (wrap-around), close the overlay.
-- **`Cmd+[`** → previous desktop (wrap-around), close the overlay.
+- **`Cmd+]`** while Cmd is held → switch to the next desktop in the row
+  (wrap-around). The overlay stays open so the user can chain multiple
+  presses; releasing Cmd then closes the overlay without activating the
+  (now stale) selected app/window.
+- **`Cmd+[`** → previous desktop (wrap-around), same overlay-stays-open
+  semantics.
 - **Rename mode (`isRenaming == true`)** → bracket keys and chip clicks are
   ignored, consistent with how Tab/arrows/digits are gated today.
 
@@ -298,7 +301,11 @@ Mouse-click on chip i
 Cmd+] / Cmd+[
   -> SwitcherHotkey -> onDesktopNext / onDesktopPrev
   -> controller.desktopNext()/desktopPrev()
-  -> clickDesktop on the wrapped target index
+  -> advanceToDesktop: SpaceSwitcher.switchTo + model.desktops.isCurrent shift,
+     overlay stays open, didNavigateDesktop = true
+Cmd release after a bracket nav
+  -> SwitcherCommit.resolve(..., didNavigateDesktop: true) -> .noop
+  -> close()  (no app activation)
 ```
 
 ## Testing strategy

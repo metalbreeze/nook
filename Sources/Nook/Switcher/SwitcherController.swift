@@ -8,9 +8,11 @@ final class SwitcherController {
     private var generation = 0
     private let nameStore = DesktopNameStore()
     private var spaceID: CGSSpaceID?
+    private var didNavigateDesktop = false
     var onDesktopRenamed: (() -> Void)?
 
     func open() {
+        didNavigateDesktop = false
         let apps = DesktopAppEnumerator.currentDesktopApps()
         guard !apps.isEmpty else { return }
         let currentSpaceID = CurrentSpace.id()
@@ -97,25 +99,49 @@ final class SwitcherController {
         SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
     }
 
+    /// Bracket-driven nav: switches Space but keeps the overlay open so the
+    /// user can chain Cmd+] / Cmd+[ presses. Sets `didNavigateDesktop` so the
+    /// eventual Cmd-release commit short-circuits to a `.noop` rather than
+    /// activating the pre-nav (stale) selected app/window.
+    private func advanceToDesktop(at index: Int) {
+        guard let model else { return }
+        guard model.desktops.indices.contains(index) else { return }
+        let target = model.desktops[index]
+        if target.isCurrent { return }
+        didNavigateDesktop = true
+        spaceID = target.id
+        model.desktopName = nameStore.name(for: target.id)
+        model.desktops = model.desktops.map { vm in
+            DesktopVM(id: vm.id,
+                      label: vm.label,
+                      displayUUID: vm.displayUUID,
+                      isCurrent: vm.id == target.id)
+        }
+        SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
+    }
+
     func desktopNext() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
         let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)
-        clickDesktop(next)
+        advanceToDesktop(at: next)
     }
 
     func desktopPrev() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
         let prev = SwitcherIndex.reverse(currentIdx, count: model.desktops.count)
-        clickDesktop(prev)
+        advanceToDesktop(at: prev)
     }
 
     func commit() {
         guard let model, !model.isRenaming else { return }
         let intent = SwitcherCommit.resolve(selectedWindowIndex: model.selectedWindowIndex,
-                                            windowCount: model.windows.count)
+                                            windowCount: model.windows.count,
+                                            didNavigateDesktop: didNavigateDesktop)
         switch intent {
+        case .noop:
+            close()
         case .window(let index):
             let win = model.windows[index]
             close()

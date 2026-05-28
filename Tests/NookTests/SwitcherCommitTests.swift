@@ -18,4 +18,31 @@ final class SwitcherCommitTests: XCTestCase {
     func test_emptyWindows_isApp() {
         XCTAssertEqual(SwitcherCommit.resolve(selectedWindowIndex: 0, windowCount: 0), .app)
     }
+
+    func test_didNavigateDesktopOverridesToNoop() {
+        XCTAssertEqual(
+            SwitcherCommit.resolve(selectedWindowIndex: 0,
+                                   windowCount: 3,
+                                   didNavigateDesktop: true),
+            .noop
+        )
+    }
+
+    func test_didNavigateDesktopOverridesEvenWithoutWindowSelection() {
+        XCTAssertEqual(
+            SwitcherCommit.resolve(selectedWindowIndex: -1,
+                                   windowCount: 0,
+                                   didNavigateDesktop: true),
+            .noop
+        )
+    }
+
+    func test_didNavigateDesktopFalseKeepsExistingBehavior() {
+        XCTAssertEqual(
+            SwitcherCommit.resolve(selectedWindowIndex: -1,
+                                   windowCount: 2,
+                                   didNavigateDesktop: false),
+            .app
+        )
+    }
 }
