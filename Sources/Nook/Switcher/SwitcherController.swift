@@ -180,7 +180,10 @@ final class SwitcherController {
         generation += 1
         let token = generation
         let pid = model.apps[appIndex].pid
-        model.windows = []
+        // Keep the existing model.windows visible until the new fetch returns
+        // (the generation token discards stale async results). Clearing here
+        // used to make the VStack reflow vertically — a visible flicker on
+        // every Tab press.
         Task { [weak self] in
             let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid)) ?? []
             guard let self, self.generation == token, let model = self.model else { return }

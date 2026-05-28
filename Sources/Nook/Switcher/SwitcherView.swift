@@ -32,13 +32,16 @@ struct SwitcherView: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                if !model.windows.isEmpty {
-                    HStack(spacing: 14) {
-                        ForEach(Array(model.windows.enumerated()), id: \.element.id) { index, win in
-                            windowThumb(win, selected: index == model.selectedWindowIndex, index: index)
-                        }
+                // Always render the windows row at a stable height so the
+                // overlay does not reflow when an app has zero windows or
+                // before the first fetch returns — that reflow is the Tab
+                // flicker users see. Thumb height ≈ 130 + caption + paddings.
+                HStack(spacing: 14) {
+                    ForEach(Array(model.windows.enumerated()), id: \.element.id) { index, win in
+                        windowThumb(win, selected: index == model.selectedWindowIndex, index: index)
                     }
                 }
+                .frame(minHeight: 170)
             }
             .padding(28)
             .background(.black.opacity(0.55))
