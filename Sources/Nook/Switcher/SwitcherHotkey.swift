@@ -19,6 +19,8 @@ final class SwitcherHotkey {
     var onWindowLeft: (() -> Void)?
     var onWindowRight: (() -> Void)?
     var onWindowNumber: ((Int) -> Void)?
+    var onDesktopPrev: (() -> Void)?
+    var onDesktopNext: (() -> Void)?
 
     private static let tabKeyCode: Int64 = 48
     private static let escKeyCode: Int64 = 53
@@ -27,6 +29,8 @@ final class SwitcherHotkey {
     private static let digitKeyCodes: [Int64: Int] = [
         18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
     ]
+    private static let leftBracketKeyCode: Int64 = 33   // [
+    private static let rightBracketKeyCode: Int64 = 30  // ]
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -99,6 +103,14 @@ final class SwitcherHotkey {
         }
         if keyCode == Self.rightKeyCode {
             fire(\.onWindowRight)
+            return nil
+        }
+        if keyCode == Self.rightBracketKeyCode {
+            fire(\.onDesktopNext)
+            return nil
+        }
+        if keyCode == Self.leftBracketKeyCode {
+            fire(\.onDesktopPrev)
             return nil
         }
         if keyCode == Self.escKeyCode {
