@@ -6,6 +6,7 @@ struct SwitcherApp: Identifiable {
     let pid: pid_t
     let name: String
     let icon: NSImage?
+    let isHidden: Bool                 // app hidden via Cmd+H
     var id: pid_t { pid }
 }
 

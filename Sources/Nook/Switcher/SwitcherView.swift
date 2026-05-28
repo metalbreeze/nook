@@ -144,6 +144,7 @@ struct SwitcherView: View {
         .padding(10)
         .background(selected ? Color.white.opacity(0.25) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .opacity(app.isHidden ? 0.45 : 1.0)   // dim hidden apps (Cmd+H)
     }
 
     private func numberedTitle(_ win: SwitcherWindow, index: Int) -> String {

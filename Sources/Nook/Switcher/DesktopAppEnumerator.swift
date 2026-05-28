@@ -3,20 +3,27 @@ import CoreGraphics
 
 enum DesktopAppEnumerator {
     /// Apps with at least one normal window on the current desktop, current app
-    /// first, in window z-order. Excludes this process. No Screen Recording needed.
+    /// first, in window z-order, with hidden apps (Cmd+H) moved to the tail.
+    /// Excludes this process. No Screen Recording needed.
+    ///
+    /// Now a thin wrapper around `appsOnSpace(currentSpaceID)` so the hidden
+    /// app handling stays consistent between the current desktop and previewed
+    /// desktops. Falls back to the legacy `.optionOnScreenOnly` path if CGS
+    /// can't tell us the current Space (defensive — that path excludes hidden
+    /// apps, which mirrors what we did before).
     static func currentDesktopApps() -> [SwitcherApp] {
+        if let currentSpaceID = CurrentSpace.id() {
+            return appsOnSpace(currentSpaceID)
+        }
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         let raw = onScreenWindows()
         let pids = DesktopAppList.appPIDs(from: raw, frontmostPID: frontmostPID)
-        return pids.compactMap(makeApp(pid:))
+        return hiddenLast(pids.compactMap(makeApp(pid:)))
     }
 
     /// Apps with at least one normal window on `spaceID`, in window z-order,
-    /// with the current frontmost app first if it has a window there. Uses
-    /// `WindowsOnSpace` (private CGS) to compute the allow-set; the frontmost
-    /// signal is the same as for `currentDesktopApps()` and is only useful when
-    /// `spaceID` is the active Space (otherwise the frontmost is unlikely to
-    /// own a window there, so the call falls through to z-order).
+    /// with the current frontmost app first if it has a window there, and
+    /// hidden apps (Cmd+H) moved to the tail.
     static func appsOnSpace(_ spaceID: CGSSpaceID) -> [SwitcherApp] {
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         let raw = allSpacesWindows()
@@ -24,7 +31,16 @@ enum DesktopAppEnumerator {
         let pids = DesktopAppList.appPIDs(from: raw,
                                           frontmostPID: frontmostPID,
                                           allowedWindowIDs: allowed)
-        return pids.compactMap(makeApp(pid:))
+        return hiddenLast(pids.compactMap(makeApp(pid:)))
+    }
+
+    /// Stable partition: visible apps first (relative order preserved), then
+    /// hidden apps (relative order preserved). The frontmost reorder upstream
+    /// happens on the un-partitioned list, so if the macOS-frontmost app is
+    /// hidden, it lands at the head of the hidden segment rather than the
+    /// head of the whole list.
+    private static func hiddenLast(_ apps: [SwitcherApp]) -> [SwitcherApp] {
+        apps.filter { !$0.isHidden } + apps.filter { $0.isHidden }
     }
 
     /// On-screen (current Space) windows, with off-screen mid-Space-switch
@@ -84,6 +100,9 @@ enum DesktopAppEnumerator {
 
     private static func makeApp(pid: pid_t) -> SwitcherApp? {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
-        return SwitcherApp(pid: pid, name: app.localizedName ?? "", icon: app.icon)
+        return SwitcherApp(pid: pid,
+                           name: app.localizedName ?? "",
+                           icon: app.icon,
+                           isHidden: app.isHidden)
     }
 }
