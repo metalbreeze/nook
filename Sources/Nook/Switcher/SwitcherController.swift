@@ -166,17 +166,30 @@ final class SwitcherController {
             close()
             WindowActivator.activate(win.info, pid: win.pid)
         case .switchSpace(let target, let uuid):
-            // Also activate the previewed desktop's selected app so the
-            // frontmost-app context follows the Space switch — otherwise
-            // the pre-Cmd+Tab app stays NSApp.frontmost on the new Space
-            // and looks like it "came along".
+            // Prefer AX-raising a specific window on the target desktop —
+            // that's the same mechanism the .window case uses and it
+            // reliably switches Space AND transfers frontmost-app focus
+            // (NSRunningApplication.activate from a LSUIElement process
+            // on macOS 14+ is not strong enough to dethrone the prior
+            // frontmost app). model.windows is the selected app's windows
+            // on the previewed Space, so its first entry is a valid pick
+            // when the async load has landed.
+            let firstWindowOnTarget = model.windows.first
             let appPID: pid_t? = model.apps.indices.contains(model.selectedAppIndex)
                 ? model.apps[model.selectedAppIndex].pid
                 : nil
             close()
-            SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-            if let pid = appPID {
-                NSRunningApplication(processIdentifier: pid)?.activate()
+            if let win = firstWindowOnTarget {
+                WindowActivator.activate(win.info, pid: win.pid)
+            } else if let pid = appPID {
+                // Windows haven't loaded yet — best-effort: switch the
+                // Space and try to activate the app with the deprecated
+                // but still-functional ignoreOtherApps option.
+                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+                NSRunningApplication(processIdentifier: pid)?
+                    .activate(options: [.activateIgnoringOtherApps])
+            } else {
+                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
             }
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
