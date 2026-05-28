@@ -13,10 +13,26 @@ final class SwitcherController {
     func open() {
         let apps = DesktopAppEnumerator.currentDesktopApps()
         guard !apps.isEmpty else { return }
-        let model = SwitcherModel(apps: apps, selectedAppIndex: 0)
-        spaceID = CurrentSpace.id()
-        if let spaceID {
-            model.desktopName = nameStore.name(for: spaceID)
+        let currentSpaceID = CurrentSpace.id()
+        spaceID = currentSpaceID
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        let entries = screen.map { DesktopEnumerator.desktopsForCurrentScreen($0) } ?? []
+        let desktopVMs: [DesktopVM] = entries.map { entry in
+            DesktopVM(
+                id: entry.spaceID,
+                label: DesktopLabel.label(
+                    index: entry.indexInDisplay,
+                    storedName: nameStore.storedName(for: entry.spaceID)
+                ),
+                displayUUID: entry.displayUUID,
+                isCurrent: entry.spaceID == currentSpaceID
+            )
+        }
+        let model = SwitcherModel(apps: apps,
+                                  selectedAppIndex: 0,
+                                  desktops: desktopVMs)
+        if let currentSpaceID {
+            model.desktopName = nameStore.name(for: currentSpaceID)
         }
         self.model = model
         showWindow(model: model)
@@ -70,6 +86,29 @@ final class SwitcherController {
         let win = model.windows[index]
         close()
         WindowActivator.activate(win.info, pid: win.pid)
+    }
+
+    func clickDesktop(_ index: Int) {
+        guard let model, !model.isRenaming else { return }
+        guard model.desktops.indices.contains(index) else { return }
+        let target = model.desktops[index]
+        if target.isCurrent { return }      // no-op on the current chip
+        close()
+        SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
+    }
+
+    func desktopNext() {
+        guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
+        let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
+        let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)
+        clickDesktop(next)
+    }
+
+    func desktopPrev() {
+        guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
+        let currentIdx = model.desktops.firstIndex(where: { $0.isCurrent }) ?? 0
+        let prev = SwitcherIndex.reverse(currentIdx, count: model.desktops.count)
+        clickDesktop(prev)
     }
 
     func commit() {
