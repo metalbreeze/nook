@@ -35,7 +35,12 @@ enum DesktopAppEnumerator {
             } else {
                 onScreen = true
             }
-            return RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: onScreen)
+            let windowID: CGWindowID? = (info[kCGWindowNumber as String] as? NSNumber)
+                .map { CGWindowID($0.uint32Value) }
+            return RawAppWindow(ownerPID: pid,
+                                layer: layer,
+                                isOnScreen: onScreen,
+                                windowID: windowID)
         }
     }
 }
