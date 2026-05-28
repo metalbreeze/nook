@@ -20,15 +20,18 @@ struct SwitcherWindow: Identifiable {
 
 /// View model for one desktop chip in the Cmd+Tab overlay.
 ///
-/// Two flags so the chip row can convey both "what the user is looking at"
-/// (isPreviewed → solid fill) and "where macOS actually is right now"
-/// (isReal → outlined border). They coincide on overlay open.
+/// Two flags so the chip row can convey both "where macOS actually is right
+/// now" (isReal → solid fill) and "what the user is peeking at" (isPreviewed
+/// → outlined border) at once. They coincide on overlay open.
 struct DesktopVM: Identifiable, Equatable {
-    let id: CGSSpaceID            // also the Space ID
-    let label: String             // e.g. "1  Work" or "3  Desktop 3"
+    let id: CGSSpaceID                  // also the Space ID
+    let index: Int                      // 1-based chip position
+    let name: String                    // current display name (stored or default)
     let displayUUID: String
     let isPreviewed: Bool
     let isReal: Bool
+
+    var label: String { DesktopLabel.label(index: index, storedName: name) }
 }
 
 final class SwitcherModel: ObservableObject {
@@ -38,6 +41,7 @@ final class SwitcherModel: ObservableObject {
     @Published var selectedWindowIndex: Int   // -1 = app-level (no window selected)
     @Published var desktopName: String
     @Published var isRenaming: Bool
+    @Published var renamingDesktopID: CGSSpaceID?
     @Published var desktops: [DesktopVM]
     @Published var previewedSpaceID: CGSSpaceID?
     @Published var realSpaceID: CGSSpaceID?
@@ -49,6 +53,7 @@ final class SwitcherModel: ObservableObject {
         self.selectedWindowIndex = -1
         self.desktopName = DesktopNameStore.defaultName
         self.isRenaming = false
+        self.renamingDesktopID = nil
         self.desktops = desktops
         self.previewedSpaceID = nil
         self.realSpaceID = nil

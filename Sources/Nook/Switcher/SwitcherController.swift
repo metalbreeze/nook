@@ -19,12 +19,11 @@ final class SwitcherController {
         let entries = screen.map { DesktopEnumerator.desktopsForCurrentScreen($0) } ?? []
         let desktopVMs: [DesktopVM] = entries.map { entry in
             let isCurrent = entry.spaceID == currentSpaceID
+            let storedName = nameStore.storedName(for: entry.spaceID)
             return DesktopVM(
                 id: entry.spaceID,
-                label: DesktopLabel.label(
-                    index: entry.indexInDisplay,
-                    storedName: nameStore.storedName(for: entry.spaceID)
-                ),
+                index: entry.indexInDisplay,
+                name: storedName ?? "Desktop \(entry.indexInDisplay)",
                 displayUUID: entry.displayUUID,
                 isPreviewed: isCurrent,
                 isReal: isCurrent
@@ -118,7 +117,8 @@ final class SwitcherController {
         model.desktopName = nameStore.name(for: target.id)
         model.desktops = model.desktops.map { vm in
             DesktopVM(id: vm.id,
-                      label: vm.label,
+                      index: vm.index,
+                      name: vm.name,
                       displayUUID: vm.displayUUID,
                       isPreviewed: vm.id == target.id,
                       isReal: vm.isReal)
@@ -180,16 +180,19 @@ final class SwitcherController {
         close()
     }
 
-    func beginRename() {
+    func beginRename(targetSpaceID: CGSSpaceID) {
         guard let model else { return }
+        model.renamingDesktopID = targetSpaceID
         model.isRenaming = true
+        spaceID = targetSpaceID
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func finishRename(save: Bool, newName: String) {
-        if save, let spaceID {
-            nameStore.setName(newName, for: spaceID)
+        let target = model?.renamingDesktopID ?? spaceID
+        if save, let target {
+            nameStore.setName(newName, for: target)
             onDesktopRenamed?()
         }
         close()
@@ -242,7 +245,7 @@ final class SwitcherController {
             model: model,
             onHoverWindow: { [weak self] index in self?.hoverWindow(index) },
             onClickWindow: { [weak self] index in self?.clickWindow(index) },
-            onBeginRename: { [weak self] in self?.beginRename() },
+            onBeginRename: { [weak self] target in self?.beginRename(targetSpaceID: target) },
             onFinishRename: { [weak self] save, name in self?.finishRename(save: save, newName: name) },
             onClickDesktop: { [weak self] index in self?.clickDesktop(index) }
         )

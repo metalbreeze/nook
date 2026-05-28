@@ -4,7 +4,7 @@ struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     let onHoverWindow: (Int) -> Void
     let onClickWindow: (Int) -> Void
-    let onBeginRename: () -> Void
+    let onBeginRename: (CGSSpaceID) -> Void
     let onFinishRename: (Bool, String) -> Void
     let onClickDesktop: (Int) -> Void
 
@@ -53,69 +53,79 @@ struct SwitcherView: View {
 
     @ViewBuilder
     private var desktopRow: some View {
-        if model.isRenaming {
-            renameField
-        } else if model.desktops.count >= 2 {
-            HStack(spacing: 10) {
+        if !model.desktops.isEmpty {
+            HStack(spacing: 14) {
                 ForEach(Array(model.desktops.enumerated()), id: \.element.id) { idx, desktop in
                     desktopChip(desktop, onClick: { onClickDesktop(idx) })
-                    if desktop.isPreviewed {
-                        Button("Rename") { onBeginRename() }
-                            .buttonStyle(.bordered)
-                    }
                 }
             }
+            .padding(.top, 6)   // leave room above for the rename pencil
         } else {
             legacyNameRow
         }
     }
 
+    /// Fallback row when the chip enumeration returned nothing (degenerate).
     @ViewBuilder
     private var legacyNameRow: some View {
         HStack(spacing: 10) {
             Text(model.desktopName)
                 .font(.headline)
                 .foregroundStyle(.white)
-            Button("Rename") { onBeginRename() }
-                .buttonStyle(.bordered)
         }
     }
 
     @ViewBuilder
-    private var renameField: some View {
-        TextField("Desktop name", text: $editName)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 240)
-            .focused($nameFieldFocused)
-            .onAppear {
-                editName = model.desktopName
-                nameFieldFocused = true
-            }
-            .onSubmit { onFinishRename(true, editName) }
-            .onExitCommand { onFinishRename(false, editName) }
-    }
-
-    @ViewBuilder
     private func desktopChip(_ desktop: DesktopVM, onClick: @escaping () -> Void) -> some View {
-        Text(desktop.label)
-            .font(.subheadline)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(desktop.isPreviewed ? Color.white.opacity(0.25) : Color.clear)
-            .overlay(
-                Capsule()
-                    .stroke(desktop.isReal ? Color.white.opacity(0.6) : Color.clear,
-                            lineWidth: 1.5)
-            )
-            .clipShape(Capsule())
-            .contentShape(Capsule())
-            .onHover { hovering in
-                // Intentional: chip row stays visually calm; window thumbs already
-                // provide hover feedback elsewhere.
-                _ = hovering
+        if model.renamingDesktopID == desktop.id {
+            // In-place edit: this chip becomes a small TextField.
+            HStack(spacing: 6) {
+                Text("\(desktop.index)")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                TextField("Name", text: $editName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 100, maxWidth: 180)
+                    .focused($nameFieldFocused)
+                    .onAppear {
+                        editName = desktop.name
+                        nameFieldFocused = true
+                    }
+                    .onSubmit { onFinishRename(true, editName) }
+                    .onExitCommand { onFinishRename(false, editName) }
             }
-            .onTapGesture { if !desktop.isReal { onClick() } }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.15))
+            .clipShape(Capsule())
+        } else {
+            // Normal chip with rename button overlaid at the upper-left.
+            Text(desktop.label)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(desktop.isReal ? Color.white.opacity(0.25) : Color.clear)
+                .overlay(
+                    Capsule()
+                        .stroke(desktop.isPreviewed ? Color.white.opacity(0.7) : Color.clear,
+                                lineWidth: 1.5)
+                )
+                .clipShape(Capsule())
+                .contentShape(Capsule())
+                .onTapGesture { if !desktop.isReal { onClick() } }
+                .overlay(alignment: .topLeading) {
+                    Button(action: { onBeginRename(desktop.id) }) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Rename desktop")
+                    .offset(x: -6, y: -6)
+                }
+        }
     }
 
     @ViewBuilder
