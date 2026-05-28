@@ -191,7 +191,8 @@ final class SwitcherController {
             onHoverWindow: { [weak self] index in self?.hoverWindow(index) },
             onClickWindow: { [weak self] index in self?.clickWindow(index) },
             onBeginRename: { [weak self] in self?.beginRename() },
-            onFinishRename: { [weak self] save, name in self?.finishRename(save: save, newName: name) }
+            onFinishRename: { [weak self] save, name in self?.finishRename(save: save, newName: name) },
+            onClickDesktop: { [weak self] index in self?.clickDesktop(index) }
         )
         let hosting = FirstMouseHostingView(rootView: root)
         hosting.frame = screen.frame

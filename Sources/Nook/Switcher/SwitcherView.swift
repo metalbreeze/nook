@@ -6,6 +6,7 @@ struct SwitcherView: View {
     let onClickWindow: (Int) -> Void
     let onBeginRename: () -> Void
     let onFinishRename: (Bool, String) -> Void
+    let onClickDesktop: (Int) -> Void
 
     @State private var editName: String = ""
     @FocusState private var nameFieldFocused: Bool
@@ -19,7 +20,7 @@ struct SwitcherView: View {
         VStack {
             Spacer()
             VStack(spacing: 18) {
-                nameRow
+                desktopRow
 
                 HStack(spacing: 16) {
                     ForEach(Array(model.apps.enumerated()), id: \.element.id) { index, app in
@@ -48,27 +49,66 @@ struct SwitcherView: View {
     }
 
     @ViewBuilder
-    private var nameRow: some View {
+    private var desktopRow: some View {
         if model.isRenaming {
-            TextField("Desktop name", text: $editName)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 240)
-                .focused($nameFieldFocused)
-                .onAppear {
-                    editName = model.desktopName
-                    nameFieldFocused = true
-                }
-                .onSubmit { onFinishRename(true, editName) }
-                .onExitCommand { onFinishRename(false, editName) }
-        } else {
+            renameField
+        } else if model.desktops.count >= 2 {
             HStack(spacing: 10) {
-                Text(model.desktopName)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Button("Rename") { onBeginRename() }
-                    .buttonStyle(.bordered)
+                ForEach(Array(model.desktops.enumerated()), id: \.element.id) { idx, desktop in
+                    desktopChip(desktop, onClick: { onClickDesktop(idx) })
+                    if desktop.isCurrent {
+                        Button("Rename") { onBeginRename() }
+                            .buttonStyle(.bordered)
+                    }
+                }
             }
+        } else {
+            legacyNameRow
         }
+    }
+
+    @ViewBuilder
+    private var legacyNameRow: some View {
+        HStack(spacing: 10) {
+            Text(model.desktopName)
+                .font(.headline)
+                .foregroundStyle(.white)
+            Button("Rename") { onBeginRename() }
+                .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private var renameField: some View {
+        TextField("Desktop name", text: $editName)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 240)
+            .focused($nameFieldFocused)
+            .onAppear {
+                editName = model.desktopName
+                nameFieldFocused = true
+            }
+            .onSubmit { onFinishRename(true, editName) }
+            .onExitCommand { onFinishRename(false, editName) }
+    }
+
+    @ViewBuilder
+    private func desktopChip(_ desktop: DesktopVM, onClick: @escaping () -> Void) -> some View {
+        Text(desktop.label)
+            .font(.subheadline)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(desktop.isCurrent ? Color.white.opacity(0.25) : Color.clear)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .onHover { hovering in
+                // The current chip stays at its highlight; non-current chips
+                // get no hover affordance to keep the row visually calm
+                // (window thumbs already provide hover feedback elsewhere).
+                _ = hovering
+            }
+            .onTapGesture { if !desktop.isCurrent { onClick() } }
     }
 
     @ViewBuilder
