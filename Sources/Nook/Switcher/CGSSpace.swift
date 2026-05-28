@@ -19,6 +19,13 @@ func CGSManagedDisplaySetCurrentSpace(
     _ spaceID: CGSSpaceID
 )
 
+@_silgen_name("CGSCopySpacesForWindows")
+func CGSCopySpacesForWindows(
+    _ cid: CGSConnectionID,
+    _ mask: UInt64,
+    _ windowIDs: CFArray
+) -> CFArray
+
 /// Reads the current (active) Space ID via the private CGS/SkyLight API.
 /// Returns nil if the call yields 0 (defensive). Private/unsupported.
 enum CurrentSpace {
