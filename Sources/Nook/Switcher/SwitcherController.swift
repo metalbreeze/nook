@@ -8,11 +8,9 @@ final class SwitcherController {
     private var generation = 0
     private let nameStore = DesktopNameStore()
     private var spaceID: CGSSpaceID?
-    private var didNavigateDesktop = false
     var onDesktopRenamed: (() -> Void)?
 
     func open() {
-        didNavigateDesktop = false
         let apps = DesktopAppEnumerator.currentDesktopApps()
         guard !apps.isEmpty else { return }
         let currentSpaceID = CurrentSpace.id()
@@ -39,24 +37,26 @@ final class SwitcherController {
         model.realSpaceID = currentSpaceID
         if let currentSpaceID {
             model.desktopName = nameStore.name(for: currentSpaceID)
+            loadWindows(forAppIndex: 0, onSpace: currentSpaceID)
         }
         self.model = model
         showWindow(model: model)
-        loadWindows(forAppIndex: 0)
     }
 
     func advance() {
-        guard let model, !model.isRenaming, !model.apps.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.apps.isEmpty,
+              let spaceID = model.previewedSpaceID else { return }
         model.selectedAppIndex = SwitcherIndex.advance(model.selectedAppIndex, count: model.apps.count)
         model.selectedWindowIndex = -1
-        loadWindows(forAppIndex: model.selectedAppIndex)
+        loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
     }
 
     func reverse() {
-        guard let model, !model.isRenaming, !model.apps.isEmpty else { return }
+        guard let model, !model.isRenaming, !model.apps.isEmpty,
+              let spaceID = model.previewedSpaceID else { return }
         model.selectedAppIndex = SwitcherIndex.reverse(model.selectedAppIndex, count: model.apps.count)
         model.selectedWindowIndex = -1
-        loadWindows(forAppIndex: model.selectedAppIndex)
+        loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
     }
 
     func windowLeft() {
@@ -103,57 +103,71 @@ final class SwitcherController {
         SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
     }
 
-    /// Bracket-driven nav: switches Space but keeps the overlay open so the
-    /// user can chain Cmd+] / Cmd+[ presses. Sets `didNavigateDesktop` so the
-    /// eventual Cmd-release commit short-circuits to a `.noop` rather than
-    /// activating the pre-nav (stale) selected app/window.
-    private func advanceToDesktop(at index: Int) {
-        guard let model else { return }
+    /// Bracket-driven (and Cmd+Shift+digit-driven) preview: re-flags the chip
+    /// row and reloads apps + windows for `target`, but does **not** call
+    /// `SpaceSwitcher.switchTo`. The actual Space switch happens on commit
+    /// (Cmd release) if `previewedSpaceID` still differs from `realSpaceID`.
+    private func previewDesktop(at index: Int) {
+        guard let model, !model.isRenaming else { return }
         guard model.desktops.indices.contains(index) else { return }
         let target = model.desktops[index]
-        if target.isPreviewed { return }
-        didNavigateDesktop = true
-        spaceID = target.id
+        if target.isPreviewed { return }            // already viewing it
+
+        spaceID = target.id                          // rename target follows preview
         model.previewedSpaceID = target.id
-        model.realSpaceID = target.id
         model.desktopName = nameStore.name(for: target.id)
         model.desktops = model.desktops.map { vm in
-            let isCurrent = vm.id == target.id
-            return DesktopVM(id: vm.id,
-                             label: vm.label,
-                             displayUUID: vm.displayUUID,
-                             isPreviewed: isCurrent,
-                             isReal: isCurrent)
+            DesktopVM(id: vm.id,
+                      label: vm.label,
+                      displayUUID: vm.displayUUID,
+                      isPreviewed: vm.id == target.id,
+                      isReal: vm.isReal)
         }
-        SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
+        model.apps = DesktopAppEnumerator.appsOnSpace(target.id)
+        model.selectedAppIndex = 0
+        model.selectedWindowIndex = -1
+        loadWindows(forAppIndex: 0, onSpace: target.id)
+    }
+
+    /// 1-based; `n` is the chip position in `model.desktops`. No-op if `n`
+    /// exceeds the count.
+    func previewDesktop(byNumber n: Int) {
+        guard n >= 1, let model, model.desktops.indices.contains(n - 1) else { return }
+        previewDesktop(at: n - 1)
     }
 
     func desktopNext() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)
-        advanceToDesktop(at: next)
+        previewDesktop(at: next)
     }
 
     func desktopPrev() {
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let prev = SwitcherIndex.reverse(currentIdx, count: model.desktops.count)
-        advanceToDesktop(at: prev)
+        previewDesktop(at: prev)
     }
 
     func commit() {
         guard let model, !model.isRenaming else { return }
-        let intent = SwitcherCommit.resolve(selectedWindowIndex: model.selectedWindowIndex,
-                                            windowCount: model.windows.count,
-                                            didNavigateDesktop: didNavigateDesktop)
+        let previewedUUID = model.desktops.first(where: { $0.isPreviewed })?.displayUUID
+        let intent = SwitcherCommit.resolve(
+            selectedWindowIndex: model.selectedWindowIndex,
+            windowCount: model.windows.count,
+            previewedSpaceID: model.previewedSpaceID,
+            realSpaceID: model.realSpaceID,
+            previewedDisplayUUID: previewedUUID
+        )
         switch intent {
-        case .noop:
-            close()
         case .window(let index):
             let win = model.windows[index]
             close()
             WindowActivator.activate(win.info, pid: win.pid)
+        case .switchSpace(let target, let uuid):
+            close()
+            SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
@@ -181,9 +195,9 @@ final class SwitcherController {
         close()
     }
 
-    /// Loads the highlighted app's current-desktop windows, then captures thumbnails
+    /// Loads the highlighted app's windows on `spaceID`, then captures thumbnails
     /// asynchronously. A generation token discards stale results when the user Tabs fast.
-    private func loadWindows(forAppIndex appIndex: Int) {
+    private func loadWindows(forAppIndex appIndex: Int, onSpace spaceID: CGSSpaceID) {
         guard let model, model.apps.indices.contains(appIndex) else { return }
         generation += 1
         let token = generation
@@ -193,7 +207,8 @@ final class SwitcherController {
         // used to make the VStack reflow vertically — a visible flicker on
         // every Tab press.
         Task { [weak self] in
-            let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid)) ?? []
+            let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid,
+                                                                          onSpace: spaceID)) ?? []
             guard let self, self.generation == token, let model = self.model else { return }
             var built: [SwitcherWindow] = scWindows.map { scWindow in
                 let info = WindowEnumerator.info(from: scWindow)

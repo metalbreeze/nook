@@ -1,27 +1,32 @@
 import Foundation
 
-/// Resolves what the Cmd+Tab switcher should do when the user releases Cmd
-/// (committing the current selection).
+/// Resolves what the Cmd+Tab switcher should do on commit (Cmd release).
 ///
-/// - When the user navigated desktops during the session (`didNavigateDesktop`
-///   is true), the model's selected app/window references the pre-navigation
-///   desktop and is therefore stale; commit becomes a `.noop` and the
-///   controller just closes the overlay.
-/// - Otherwise, if a window has been picked (selectedWindowIndex >= 0) it
-///   becomes `.window`, else `.app`.
+/// Order of precedence:
+///   1. A valid `selectedWindowIndex` always wins → `.window(i)`.
+///   2. If `previewedSpaceID != realSpaceID` (and we have a `displayUUID`),
+///      the user committed via desktop preview → `.switchSpace`.
+///   3. Otherwise → `.app` (activate the selected app on the real desktop).
 enum SwitcherCommit {
     enum Intent: Equatable {
         case app
         case window(Int)
-        case noop
+        case switchSpace(CGSSpaceID, displayUUID: String)
     }
 
     static func resolve(selectedWindowIndex: Int,
                         windowCount: Int,
-                        didNavigateDesktop: Bool = false) -> Intent {
-        if didNavigateDesktop { return .noop }
+                        previewedSpaceID: CGSSpaceID?,
+                        realSpaceID: CGSSpaceID?,
+                        previewedDisplayUUID: String?) -> Intent {
         if selectedWindowIndex >= 0 && selectedWindowIndex < windowCount {
             return .window(selectedWindowIndex)
+        }
+        if let preview = previewedSpaceID,
+           let real = realSpaceID,
+           let uuid = previewedDisplayUUID,
+           preview != real {
+            return .switchSpace(preview, displayUUID: uuid)
         }
         return .app
     }
