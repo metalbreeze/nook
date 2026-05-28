@@ -116,10 +116,11 @@ final class SwitcherHotkey {
             return nil
         }
         if keyCode == Self.backtickKeyCode {
+            // macOS convention: Cmd+` = next, Cmd+Shift+` = previous.
             if flags.contains(.maskShift) {
-                fire(\.onDesktopNext)
-            } else {
                 fire(\.onDesktopPrev)
+            } else {
+                fire(\.onDesktopNext)
             }
             return nil
         }

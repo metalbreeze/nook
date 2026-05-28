@@ -114,16 +114,19 @@ struct SwitcherView: View {
                 .clipShape(Capsule())
                 .contentShape(Capsule())
                 .onTapGesture { if !desktop.isReal { onClick() } }
-                .overlay(alignment: .topLeading) {
+                .overlay(alignment: .topTrailing) {
                     Button(action: { onBeginRename(desktop.id) }) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                            .background(Circle().fill(Color.black.opacity(0.5)))
+                        ZStack {
+                            Circle().fill(Color.black.opacity(0.8))
+                            Image(systemName: "pencil")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 16, height: 16)
                     }
                     .buttonStyle(.plain)
                     .help("Rename desktop")
-                    .offset(x: -6, y: -6)
+                    .offset(x: 6, y: -6)
                 }
         }
     }
