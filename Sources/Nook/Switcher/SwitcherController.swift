@@ -174,6 +174,7 @@ final class SwitcherController {
     }
 
     func desktopNext() {
+        Log.switcher.notice("desktopNext model=\(self.model != nil, privacy: .public) renaming=\(self.model?.isRenaming ?? false, privacy: .public) desktops=\(self.model?.desktops.count ?? -1, privacy: .public)")
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)

@@ -32,7 +32,10 @@ final class SwitcherHotkey {
     ]
     private static let leftBracketKeyCode: Int64 = 33   // [
     private static let rightBracketKeyCode: Int64 = 30  // ]
-    private static let backtickKeyCode: Int64 = 50   // `
+    // The key left of "1" / above Tab: ANSI grave (50) on US/ANSI keyboards,
+    // ISO section (10) on ISO keyboards. Accept both so Cmd+` works regardless
+    // of physical keyboard layout.
+    private static let backtickKeyCodes: Set<Int64> = [50, 10]
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -94,6 +97,7 @@ final class SwitcherHotkey {
         }
 
         // active
+        Log.hotkey.notice("active keyDown keyCode=\(keyCode, privacy: .public) shift=\(flags.contains(.maskShift), privacy: .public) ctrl=\(flags.contains(.maskControl), privacy: .public) cmd=\(cmdHeld, privacy: .public)")
         if keyCode == Self.tabKeyCode {
             if flags.contains(.maskShift) {
                 fire(\.onReverse)
@@ -118,7 +122,7 @@ final class SwitcherHotkey {
             fire(\.onDesktopPrev)
             return nil
         }
-        if keyCode == Self.backtickKeyCode {
+        if Self.backtickKeyCodes.contains(keyCode) {
             // macOS convention: Cmd+` = next, Cmd+Shift+` = previous.
             if flags.contains(.maskShift) {
                 fire(\.onDesktopPrev)
