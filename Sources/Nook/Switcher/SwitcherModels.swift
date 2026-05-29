@@ -6,7 +6,9 @@ struct SwitcherApp: Identifiable {
     let pid: pid_t
     let name: String
     let icon: NSImage?
-    let isHidden: Bool                 // app hidden via Cmd+H
+    let isHidden: Bool          // Cmd+H — still needed for unhide-on-click
+    var isParked: Bool = false  // small dimmed icon + badge + Tab-skip
+    var windowCount: Int = 0    // badge value (parked only)
     var id: pid_t { pid }
 }
 
@@ -16,6 +18,7 @@ struct SwitcherWindow: Identifiable {
     let info: WindowInfo
     let pid: pid_t
     var image: CGImage?
+    var isMinimized: Bool = false   // smaller + gray + un-minimize on select
     var id: CGWindowID { windowID }
 }
 
