@@ -68,13 +68,15 @@ enum DesktopAppEnumerator {
     // MARK: - App builders
 
     private static func activeApp(pid: pid_t) -> SwitcherApp? {
-        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              app.activationPolicy == .regular else { return nil }
         return SwitcherApp(pid: pid, name: app.localizedName ?? "", icon: app.icon,
                            isHidden: app.isHidden, isParked: false, windowCount: 0)
     }
 
     private static func parkedApp(pid: pid_t, windowCount: Int, isHidden: Bool) -> SwitcherApp? {
-        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              app.activationPolicy == .regular else { return nil }
         return SwitcherApp(pid: pid, name: app.localizedName ?? "", icon: app.icon,
                            isHidden: isHidden, isParked: true, windowCount: windowCount)
     }
