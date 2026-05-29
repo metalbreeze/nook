@@ -10,7 +10,7 @@ enum WindowEnumerator {
         let visibleBounds = DisplayBounds.union()
         let raw = content.windows.map { rawWindow(from: $0, currentSpaceIDs: currentSpaceIDs) }
         let allowedIDs = Set(WindowFilter.visibleWindows(from: raw, frontmostPID: pid, visibleBounds: visibleBounds).map(\.windowID))
-        return content.windows.filter { allowedIDs.contains($0.windowID) }
+        return keepingAXRealWindows(content.windows, pid: pid, allowedIDs: allowedIDs)
     }
 
     /// Same as `filteredSCWindows(forPID:)` but the on-Space filter is the
@@ -25,7 +25,22 @@ enum WindowEnumerator {
         let allowedIDs = Set(WindowFilter.visibleWindows(from: raw,
                                                           frontmostPID: pid,
                                                           visibleBounds: visibleBounds).map(\.windowID))
-        return content.windows.filter { allowedIDs.contains($0.windowID) }
+        return keepingAXRealWindows(content.windows, pid: pid, allowedIDs: allowedIDs)
+    }
+
+    /// Keeps only the windows whose ID is allowed AND (when AX is available)
+    /// whose frame matches one of the app's real AX window frames. This drops
+    /// auxiliary layer-0 windows (browser find bars, bubbles) that survive the
+    /// size/Space filter but are not real top-level windows. If AX yields no
+    /// frames for the PID, the AX check is skipped (allow-set only).
+    private static func keepingAXRealWindows(_ windows: [SCWindow],
+                                             pid: pid_t,
+                                             allowedIDs: Set<CGWindowID>) -> [SCWindow] {
+        let axFrames = MinimizedWindows.realWindowFrames(forPID: pid)
+        return windows.filter { window in
+            guard allowedIDs.contains(window.windowID) else { return false }
+            return axFrames.isEmpty || AXFrameMatch.matches(window.frame, anyOf: axFrames)
+        }
     }
 
     private static func rawWindow(from window: SCWindow, onSpaceIDs: Set<CGWindowID>) -> RawWindow {

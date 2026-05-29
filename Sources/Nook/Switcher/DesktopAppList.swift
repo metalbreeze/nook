@@ -58,16 +58,28 @@ enum DesktopAppList {
     /// Per-PID count of "real" windows: layer 0, windowID in `allowedWindowIDs`,
     /// frame at least `minSize`, and intersecting `visibleBounds`. PIDs with no
     /// qualifying window are absent from the result (no zero entries).
+    ///
+    /// When `axFramesByPID` is supplied AND has a non-empty frame list for a
+    /// PID, a window also has to match one of those Accessibility frames to be
+    /// counted — this drops auxiliary windows (browser find bars, bubbles) that
+    /// share layer 0 with real windows but are absent from the app's AX window
+    /// list. A PID missing from the map, or mapped to an empty list, is treated
+    /// as "AX unavailable" and is not AX-filtered (legacy size/Space behavior).
     static func realWindowCounts(from windows: [RawAppWindow],
                                  allowedWindowIDs: Set<CGWindowID>,
                                  visibleBounds: CGRect,
-                                 minSize: CGSize) -> [pid_t: Int] {
+                                 minSize: CGSize,
+                                 axFramesByPID: [pid_t: [CGRect]]? = nil) -> [pid_t: Int] {
         var counts: [pid_t: Int] = [:]
         for window in windows where window.layer == 0 {
             guard let id = window.windowID, allowedWindowIDs.contains(id) else { continue }
             guard window.frame.width >= minSize.width,
                   window.frame.height >= minSize.height,
                   window.frame.intersects(visibleBounds) else { continue }
+            if let axFrames = axFramesByPID?[window.ownerPID], !axFrames.isEmpty,
+               !AXFrameMatch.matches(window.frame, anyOf: axFrames) {
+                continue
+            }
             counts[window.ownerPID, default: 0] += 1
         }
         return counts

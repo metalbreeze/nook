@@ -29,10 +29,19 @@ enum DesktopAppEnumerator {
         let orderedPIDs = DesktopAppList.appPIDs(from: raw,
                                                  frontmostPID: frontmostPID,
                                                  allowedWindowIDs: allowed)
+        // Authoritative real-window frames per candidate app (from AX). Used to
+        // drop auxiliary layer-0 windows (browser find bars, bubbles) that pass
+        // the size/Space filter but aren't real top-level windows — otherwise an
+        // app whose only window on this Space is such a panel shows up with a
+        // bogus preview and "selecting" it jumps to a real window on another
+        // Space. Empty list for a PID => AX unavailable => not filtered.
+        let axFramesByPID = Dictionary(uniqueKeysWithValues:
+            orderedPIDs.map { ($0, MinimizedWindows.realWindowFrames(forPID: $0)) })
         let realCounts = DesktopAppList.realWindowCounts(from: raw,
                                                          allowedWindowIDs: allowed,
                                                          visibleBounds: visibleBounds,
-                                                         minSize: minWindowSize)
+                                                         minSize: minWindowSize,
+                                                         axFramesByPID: axFramesByPID)
 
         var active: [SwitcherApp] = []
         var parked: [SwitcherApp] = []

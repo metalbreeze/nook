@@ -19,6 +19,14 @@ enum MinimizedWindows {
         axWindows(forPID: pid).filter { isMinimized($0) }.count
     }
 
+    /// Frames of the app's NON-minimized AX windows (across all Spaces). This is
+    /// the authoritative set of real top-level windows — auxiliary panels (find
+    /// bars, bubbles) are absent from it. Returns an empty array if AX yields
+    /// nothing, which callers treat as "AX unavailable, do not filter".
+    static func realWindowFrames(forPID pid: pid_t) -> [CGRect] {
+        axWindows(forPID: pid).filter { !isMinimized($0) }.map { axFrame($0) }
+    }
+
     /// Minimized windows of `pid`, each resolved (best-effort) to a CGWindowID
     /// via frame/title matching against CGWindowList.
     static func windows(forPID pid: pid_t) -> [MinimizedWindow] {

@@ -115,4 +115,71 @@ final class DesktopAppListTests: XCTestCase {
                                                      minSize: CGSize(width: 80, height: 80))
         XCTAssertTrue(counts.isEmpty)
     }
+
+    // --- realWindowCounts AX-frame filtering (auxiliary-window exclusion) ---
+
+    private let bigBounds = CGRect(x: 0, y: 0, width: 4000, height: 4000)
+    private let minWin = CGSize(width: 80, height: 80)
+
+    func test_realWindowCounts_axFilterExcludesAuxWindow() {
+        // Chrome on a Space where its only window is a 1051x136 find bar that
+        // passes size/Space filters but is NOT in the app's AX window list.
+        let aux = CGRect(x: 0, y: 0, width: 1051, height: 136)
+        let main = CGRect(x: 0, y: 0, width: 1591, height: 904)
+        let input = [
+            win(10, windowID: 101, frame: aux),   // find bar — only this is on the Space
+        ]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     axFramesByPID: [10: [main]])
+        XCTAssertTrue(counts.isEmpty, "aux window must not count as a real window")
+    }
+
+    func test_realWindowCounts_axFilterKeepsMatchingWindow() {
+        let main = CGRect(x: 0, y: 0, width: 1591, height: 904)
+        let input = [win(10, windowID: 101, frame: main)]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     axFramesByPID: [10: [main]])
+        XCTAssertEqual(counts[10], 1)
+    }
+
+    func test_realWindowCounts_pidAbsentFromAXMapIsNotFiltered() {
+        // AX unavailable for this PID -> fall back to size/Space behavior.
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [win(10, windowID: 101, frame: frame)]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     axFramesByPID: [20: [frame]]) // only PID 20 present
+        XCTAssertEqual(counts[10], 1)
+    }
+
+    func test_realWindowCounts_pidWithEmptyAXListIsNotFiltered() {
+        // Empty AX list also means "AX unavailable" -> do not filter.
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [win(10, windowID: 101, frame: frame)]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     axFramesByPID: [10: []])
+        XCTAssertEqual(counts[10], 1)
+    }
+
+    func test_realWindowCounts_nilAXMapPreservesLegacyBehavior() {
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [win(10, windowID: 101, frame: frame)]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     axFramesByPID: nil)
+        XCTAssertEqual(counts[10], 1)
+    }
 }
