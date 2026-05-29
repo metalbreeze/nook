@@ -135,12 +135,12 @@ struct SwitcherView: View {
 
     @ViewBuilder
     private func appIcon(_ app: SwitcherApp, selected: Bool, onClick: @escaping () -> Void) -> some View {
-        // Hidden apps render one size smaller, with a faint background and
-        // lower opacity, so they read as "parked, click to restore" and don't
-        // compete with the Tab-navigable visible apps.
-        let iconSize: CGFloat = app.isHidden ? 40 : 64
-        let pad: CGFloat = app.isHidden ? 8 : 10
-        let background: Color = app.isHidden
+        // Parked apps (Cmd+H or window-less) render one size smaller, faint bg,
+        // lower opacity, with a window-count badge — they read as "parked,
+        // click to restore" and Tab skips them.
+        let iconSize: CGFloat = app.isParked ? 40 : 64
+        let pad: CGFloat = app.isParked ? 8 : 10
+        let background: Color = app.isParked
             ? Color.white.opacity(0.08)
             : (selected ? Color.white.opacity(0.25) : Color.clear)
         Group {
@@ -154,7 +154,17 @@ struct SwitcherView: View {
         .padding(pad)
         .background(background)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .opacity(app.isHidden ? 0.55 : 1.0)
+        .opacity(app.isParked ? 0.55 : 1.0)
+        .overlay(alignment: .topTrailing) {
+            if app.isParked {
+                Text("\(app.windowCount)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 16, minHeight: 16)
+                    .background(Circle().fill(Color.black.opacity(0.8)))
+                    .offset(x: 6, y: -6)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture { onClick() }
     }
@@ -166,6 +176,8 @@ struct SwitcherView: View {
 
     @ViewBuilder
     private func windowThumb(_ win: SwitcherWindow, selected: Bool, index: Int) -> some View {
+        let thumbW: CGFloat = win.isMinimized ? 130 : 200
+        let thumbH: CGFloat = win.isMinimized ? 85 : 130
         VStack(spacing: 6) {
             Group {
                 if let image = win.image {
@@ -174,17 +186,18 @@ struct SwitcherView: View {
                         .aspectRatio(contentMode: .fit)
                 } else {
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(.gray.opacity(0.3))
-                        .overlay(Image(systemName: "macwindow").foregroundStyle(.white))
+                        .fill(.gray.opacity(win.isMinimized ? 0.5 : 0.3))
+                        .overlay(Image(systemName: win.isMinimized ? "macwindow.badge.minus" : "macwindow")
+                            .foregroundStyle(.white))
                 }
             }
-            .frame(width: 200, height: 130)
+            .frame(width: thumbW, height: thumbH)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             Text(numberedTitle(win, index: index))
                 .font(.caption)
                 .foregroundStyle(.white)
                 .lineLimit(1)
-                .frame(maxWidth: 200)
+                .frame(maxWidth: thumbW)
         }
         .padding(8)
         .background(selected ? Color.white.opacity(0.3) : Color.clear)
