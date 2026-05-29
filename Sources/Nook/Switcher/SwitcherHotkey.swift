@@ -19,6 +19,9 @@ final class SwitcherHotkey {
     var onWindowLeft: (() -> Void)?
     var onWindowRight: (() -> Void)?
     var onWindowNumber: ((Int) -> Void)?
+    var onDesktopPrev: (() -> Void)?
+    var onDesktopNext: (() -> Void)?
+    var onDesktopNumber: ((Int) -> Void)?
 
     private static let tabKeyCode: Int64 = 48
     private static let escKeyCode: Int64 = 53
@@ -27,6 +30,12 @@ final class SwitcherHotkey {
     private static let digitKeyCodes: [Int64: Int] = [
         18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
     ]
+    private static let leftBracketKeyCode: Int64 = 33   // [
+    private static let rightBracketKeyCode: Int64 = 30  // ]
+    // The key left of "1" / above Tab: ANSI grave (50) on US/ANSI keyboards,
+    // ISO section (10) on ISO keyboards. Accept both so Cmd+` works regardless
+    // of physical keyboard layout.
+    private static let backtickKeyCodes: Set<Int64> = [50, 10]
 
     func start() -> Bool {
         let mask: CGEventMask =
@@ -58,6 +67,7 @@ final class SwitcherHotkey {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            Log.hotkey.error("event tap DISABLED (\(type == .tapDisabledByTimeout ? "timeout" : "userInput", privacy: .public)) — re-enabling; native Cmd+Tab may leak")
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -81,6 +91,14 @@ final class SwitcherHotkey {
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }
+            // Cmd+` opens the panel AND moves to the next desktop in one press
+            // (Cmd+Shift+` = previous). Holding Cmd, the user can then Tab.
+            if Self.backtickKeyCodes.contains(keyCode) && cmdHeld {
+                active = true
+                fire(\.onOpen)
+                fire(flags.contains(.maskShift) ? \.onDesktopPrev : \.onDesktopNext)
+                return nil
+            }
             return Unmanaged.passUnretained(event)
         }
 
@@ -93,17 +111,42 @@ final class SwitcherHotkey {
             }
             return nil
         }
-        if keyCode == Self.leftKeyCode {
+        // Plain Left/Right select a window; Ctrl+Left/Right is the Mission
+        // Control "move a space" shortcut — we POST those ourselves to switch
+        // desktops, so let them pass through our own tap untouched.
+        if keyCode == Self.leftKeyCode && !flags.contains(.maskControl) {
             fire(\.onWindowLeft)
             return nil
         }
-        if keyCode == Self.rightKeyCode {
+        if keyCode == Self.rightKeyCode && !flags.contains(.maskControl) {
             fire(\.onWindowRight)
+            return nil
+        }
+        if keyCode == Self.rightBracketKeyCode {
+            fire(\.onDesktopNext)
+            return nil
+        }
+        if keyCode == Self.leftBracketKeyCode {
+            fire(\.onDesktopPrev)
+            return nil
+        }
+        if Self.backtickKeyCodes.contains(keyCode) {
+            // macOS convention: Cmd+` = next, Cmd+Shift+` = previous.
+            if flags.contains(.maskShift) {
+                fire(\.onDesktopPrev)
+            } else {
+                fire(\.onDesktopNext)
+            }
             return nil
         }
         if keyCode == Self.escKeyCode {
             active = false
             fire(\.onCancel)
+            return nil
+        }
+        if let number = Self.digitKeyCodes[keyCode], flags.contains(.maskShift) {
+            let callback = onDesktopNumber
+            DispatchQueue.main.async { callback?(number) }
             return nil
         }
         if let number = Self.digitKeyCodes[keyCode] {
@@ -117,6 +160,12 @@ final class SwitcherHotkey {
     private func fire(_ keyPath: KeyPath<SwitcherHotkey, (() -> Void)?>) {
         let callback = self[keyPath: keyPath]
         DispatchQueue.main.async { callback?() }
+    }
+
+    /// Temporarily enable/disable the tap. Used to get our own tap out of the
+    /// way while we synthesize Mission Control space-switch keystrokes.
+    func setTapEnabled(_ enabled: Bool) {
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: enabled) }
     }
 
     func stop() {

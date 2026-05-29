@@ -22,6 +22,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.metalbreeze.Nook
         INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/Nook.entitlements
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
         # Stable signing identity so TCC (Accessibility + Screen Recording)
         # grants persist across rebuilds. Ad-hoc signing causes macOS to

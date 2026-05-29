@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startSwitcher() {
+        AppActivationTracker.shared.start()
         let hotkey = SwitcherHotkey()
         hotkey.onOpen = { [weak self] in self?.switcher.open() }
         hotkey.onAdvance = { [weak self] in self?.switcher.advance() }
@@ -75,9 +76,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onWindowLeft = { [weak self] in self?.switcher.windowLeft() }
         hotkey.onWindowRight = { [weak self] in self?.switcher.windowRight() }
         hotkey.onWindowNumber = { [weak self] number in self?.switcher.selectWindow(number: number) }
+        hotkey.onDesktopPrev = { [weak self] in self?.switcher.desktopPrev() }
+        hotkey.onDesktopNext = { [weak self] in self?.switcher.desktopNext() }
+        hotkey.onDesktopNumber = { [weak self] n in self?.switcher.previewDesktop(byNumber: n) }
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
         switcher.onDesktopRenamed = { [weak self] in self?.updateMenuBarTitle() }
+        switcher.suspendHotkeyTap = { [weak self] in self?.switcherHotkey?.setTapEnabled(false) }
+        switcher.resumeHotkeyTap = { [weak self] in self?.switcherHotkey?.setTapEnabled(true) }
         if !hotkey.start() {
             PermissionsManager.requestAccessibility()
         }
