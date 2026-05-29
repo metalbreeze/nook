@@ -64,6 +64,7 @@ final class SwitcherHotkey {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            Log.hotkey.error("event tap DISABLED (\(type == .tapDisabledByTimeout ? "timeout" : "userInput", privacy: .public)) — re-enabling; native Cmd+Tab may leak")
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -74,6 +75,7 @@ final class SwitcherHotkey {
         if type == .flagsChanged {
             if active && !cmdHeld {
                 active = false
+                Log.hotkey.debug("Cmd released -> commit")
                 fire(\.onCommit)
             }
             return Unmanaged.passUnretained(event) // never swallow modifier changes
@@ -84,6 +86,7 @@ final class SwitcherHotkey {
         if !active {
             if keyCode == Self.tabKeyCode && cmdHeld {
                 active = true
+                Log.hotkey.debug("Cmd+Tab -> open (suppressed)")
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }

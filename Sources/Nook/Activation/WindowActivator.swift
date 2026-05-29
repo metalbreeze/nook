@@ -10,10 +10,17 @@ private func _AXUIElementGetWindow(_ element: AXUIElement,
 
 enum WindowActivator {
     static func activate(_ target: WindowInfo, pid: pid_t) {
+        Log.activate.debug("activate request pid=\(pid, privacy: .public) targetID=\(target.windowID, privacy: .public) targetFrame=\(target.frame.logDesc, privacy: .public) title=\(target.title, privacy: .public)")
         let appElement = AXUIElementCreateApplication(pid)
         var windowsValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue) == .success,
            let axWindows = windowsValue as? [AXUIElement] {
+            Log.activate.debug("AX windows for pid=\(pid, privacy: .public): count=\(axWindows.count, privacy: .public)")
+            for (i, axWin) in axWindows.enumerated() {
+                var wid: CGWindowID = 0
+                let err = _AXUIElementGetWindow(axWin, &wid)
+                Log.activate.debug("  ax[\(i, privacy: .public)] getWindowErr=\(err.rawValue, privacy: .public) id=\(wid, privacy: .public) frame=\(axFrame(axWin).logDesc, privacy: .public) title=\(axTitle(axWin), privacy: .public)")
+            }
             // Prefer CGWindowID match — reliable even for windows on non-active
             // Spaces whose AX frame (kAXPosition/kAXSize) is stale or zero.
             let byID: AXUIElement? = target.windowID != kCGNullWindowID
@@ -23,6 +30,7 @@ enum WindowActivator {
                 }
                 : nil
             if let axWin = byID {
+                Log.activate.debug("matched by CGWindowID -> raising id=\(target.windowID, privacy: .public)")
                 AXUIElementPerformAction(axWin, kAXRaiseAction as CFString)
             } else {
                 // Fallback: frame/title matching for callers that have no window
@@ -32,11 +40,17 @@ enum WindowActivator {
                 }
                 if let matchIndex = WindowMatcher.bestMatch(for: target, among: candidates),
                    matchIndex < axWindows.count {
+                    Log.activate.debug("no ID match; FALLBACK frame/title -> ax index \(matchIndex, privacy: .public)")
                     AXUIElementPerformAction(axWindows[matchIndex], kAXRaiseAction as CFString)
+                } else {
+                    Log.activate.error("no AX window matched target id=\(target.windowID, privacy: .public)")
                 }
             }
+        } else {
+            Log.activate.error("AX kAXWindowsAttribute unavailable for pid=\(pid, privacy: .public)")
         }
         NSRunningApplication(processIdentifier: pid)?.activate()
+        Log.activate.debug("called NSRunningApplication.activate() pid=\(pid, privacy: .public)")
     }
 
     private static func axTitle(_ window: AXUIElement) -> String {
