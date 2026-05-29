@@ -211,8 +211,9 @@ final class SwitcherController {
             close()
             if needsSpaceSwitch, let target = model.previewedSpaceID, let uuid = previewedUUID {
                 Log.switcher.notice("window on previewed space \(target, privacy: .public) -> switch then raise id=\(win.windowID, privacy: .public)")
+                let oldOnScreen = WindowEnumerator.onScreenWindowIDs()
                 SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-                raiseAfterSpaceSwitch(to: target, window: win, appPID: win.pid)
+                raiseAfterSpaceSwitch(to: target, window: win, appPID: win.pid, oldOnScreen: oldOnScreen)
             } else {
                 activateChosenWindow(win)
             }
@@ -225,8 +226,9 @@ final class SwitcherController {
                 : nil
             close()
             Log.switcher.notice("switchSpace target=\(target, privacy: .public) winID=\(firstWindowOnTarget?.windowID ?? 0, privacy: .public) appPID=\(appPID ?? 0, privacy: .public)")
+            let oldOnScreen = WindowEnumerator.onScreenWindowIDs()
             SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-            raiseAfterSpaceSwitch(to: target, window: firstWindowOnTarget, appPID: appPID)
+            raiseAfterSpaceSwitch(to: target, window: firstWindowOnTarget, appPID: appPID, oldOnScreen: oldOnScreen)
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
@@ -236,31 +238,40 @@ final class SwitcherController {
     }
 
     /// Activates a window (or app) on `target` AFTER the CGS Space switch has
-    /// *visually* landed.
+    /// fully, *visually* completed.
     ///
     /// Two traps make this subtle:
-    ///  1. `CGSGetActiveSpace` flips to the target instantly (bookkeeping), long
-    ///     before the switch animation finishes. Acting on that early raise
-    ///     interrupts the animation, stranding the window on the old desktop.
+    ///  1. `CGSGetActiveSpace` flips to the target instantly (bookkeeping), and
+    ///     during the slide BOTH desktops' windows are briefly on-screen — so
+    ///     neither "active space == target" nor "target window on-screen" means
+    ///     the animation is done. Raising mid-slide interrupts it, stranding the
+    ///     window on the old desktop (it vanishes on the next Space refresh).
     ///  2. `kAXWindowsAttribute` only lists windows on the *active* Space, so the
     ///     target window can't be matched until the switch lands.
-    /// The robust signal for "visually landed" is the target window appearing in
-    /// CGWindowList's on-screen set. We also require a short settle floor so an
-    /// early on-screen flip during the animation can't fire us too soon. Polls
-    /// every 30ms up to a ~1.5s safety ceiling.
+    /// The reliable "animation complete" signal is the OLD desktop's windows
+    /// having slid OFF-screen: we snapshot the on-screen set before switching and
+    /// wait until almost none of them remain on-screen (tolerating a couple of
+    /// all-Spaces/sticky windows), the active space is `target`, and the target
+    /// window is on-screen. Polls every 30ms up to a ~2s safety ceiling.
     private func raiseAfterSpaceSwitch(to target: CGSSpaceID,
                                        window: SwitcherWindow?,
                                        appPID: pid_t?,
+                                       oldOnScreen: Set<CGWindowID>,
                                        attempt: Int = 0) {
-        let maxAttempts = 50            // 50 * 30ms = 1.5s ceiling
-        let settleFloor = 8             // 8 * 30ms = 240ms minimum before raising
+        let maxAttempts = 66            // 66 * 30ms ≈ 2s ceiling
+        let targetWindowID = window?.windowID
+        let oldRef = oldOnScreen.subtracting(targetWindowID.map { [$0] } ?? [])
+        let current = WindowEnumerator.onScreenWindowIDs()
+        let oldRemaining = oldRef.intersection(current).count
+        // ≥80% of the old desktop's windows gone (tolerate ≤2 sticky windows).
+        let oldGone = oldRef.isEmpty || oldRemaining <= max(2, oldRef.count / 5)
         let landed = CurrentSpace.id() == target
-        let visuallyReady: Bool = {
-            guard let window, !window.isMinimized else { return attempt >= 12 }
-            return WindowEnumerator.onScreenWindowIDs().contains(window.windowID)
+        let targetVisible: Bool = {
+            guard let window, !window.isMinimized, let id = targetWindowID else { return true }
+            return current.contains(id)
         }()
-        if (landed && visuallyReady && attempt >= settleFloor) || attempt >= maxAttempts {
-            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) visuallyReady=\(visuallyReady, privacy: .public) attempt=\(attempt, privacy: .public)")
+        if (landed && oldGone && targetVisible) || attempt >= maxAttempts {
+            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) oldGone=\(oldGone, privacy: .public) oldRemaining=\(oldRemaining, privacy: .public)/\(oldRef.count, privacy: .public) targetVisible=\(targetVisible, privacy: .public) attempt=\(attempt, privacy: .public)")
             if let window {
                 activateChosenWindow(window)
             } else if let appPID {
@@ -269,7 +280,8 @@ final class SwitcherController {
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
-            self?.raiseAfterSpaceSwitch(to: target, window: window, appPID: appPID, attempt: attempt + 1)
+            self?.raiseAfterSpaceSwitch(to: target, window: window, appPID: appPID,
+                                        oldOnScreen: oldOnScreen, attempt: attempt + 1)
         }
     }
 
