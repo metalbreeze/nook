@@ -5,8 +5,9 @@ final class DesktopAppListTests: XCTestCase {
     private func win(_ pid: pid_t,
                      layer: Int = 0,
                      onScreen: Bool = true,
-                     windowID: CGWindowID? = nil) -> RawAppWindow {
-        RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: onScreen, windowID: windowID)
+                     windowID: CGWindowID? = nil,
+                     frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100)) -> RawAppWindow {
+        RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: onScreen, windowID: windowID, frame: frame)
     }
 
     func test_dedupsAndPreservesZOrder() {
@@ -72,5 +73,46 @@ final class DesktopAppListTests: XCTestCase {
                                    allowedWindowIDs: [202]),
             [20]
         )
+    }
+
+    // --- realWindowCounts ---
+
+    func test_realWindowCounts_countsLayer0InAllowedSetMeetingMinSize() {
+        let bounds = CGRect(x: 0, y: 0, width: 2000, height: 2000)
+        let input = [
+            win(10, windowID: 101, frame: CGRect(x: 0, y: 0, width: 200, height: 200)),
+            win(10, windowID: 102, frame: CGRect(x: 0, y: 0, width: 200, height: 200)),
+            win(20, windowID: 201, frame: CGRect(x: 0, y: 0, width: 200, height: 200)),
+        ]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101, 102, 201],
+                                                     visibleBounds: bounds,
+                                                     minSize: CGSize(width: 80, height: 80))
+        XCTAssertEqual(counts[10], 2)
+        XCTAssertEqual(counts[20], 1)
+    }
+
+    func test_realWindowCounts_excludesTinyOffscreenNonZeroLayerOutOfSet() {
+        let bounds = CGRect(x: 0, y: 0, width: 2000, height: 2000)
+        let input = [
+            win(10, windowID: 101, frame: CGRect(x: 0, y: 0, width: 10, height: 10)),     // too small
+            win(10, windowID: 102, frame: CGRect(x: 9000, y: 9000, width: 200, height: 200)), // off bounds
+            win(10, layer: 3, windowID: 103, frame: CGRect(x: 0, y: 0, width: 200, height: 200)), // non-zero layer
+            win(10, windowID: 104, frame: CGRect(x: 0, y: 0, width: 200, height: 200)),    // not in allowed set
+            win(10, windowID: 105, frame: CGRect(x: 0, y: 0, width: 200, height: 200)),    // OK
+        ]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101, 102, 103, 105],
+                                                     visibleBounds: bounds,
+                                                     minSize: CGSize(width: 80, height: 80))
+        XCTAssertEqual(counts[10], 1) // only windowID 105 qualifies
+    }
+
+    func test_realWindowCounts_emptyWhenNothingQualifies() {
+        let counts = DesktopAppList.realWindowCounts(from: [win(10, windowID: 101, frame: CGRect(x: 0, y: 0, width: 5, height: 5))],
+                                                     allowedWindowIDs: [101],
+                                                     visibleBounds: CGRect(x: 0, y: 0, width: 2000, height: 2000),
+                                                     minSize: CGSize(width: 80, height: 80))
+        XCTAssertTrue(counts.isEmpty)
     }
 }

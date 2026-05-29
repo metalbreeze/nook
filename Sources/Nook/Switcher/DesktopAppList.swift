@@ -6,15 +6,18 @@ struct RawAppWindow: Equatable {
     let layer: Int
     let isOnScreen: Bool
     let windowID: CGWindowID?
+    let frame: CGRect
 
     init(ownerPID: pid_t,
          layer: Int,
          isOnScreen: Bool,
-         windowID: CGWindowID? = nil) {
+         windowID: CGWindowID? = nil,
+         frame: CGRect = .zero) {
         self.ownerPID = ownerPID
         self.layer = layer
         self.isOnScreen = isOnScreen
         self.windowID = windowID
+        self.frame = frame
     }
 }
 
@@ -50,6 +53,24 @@ enum DesktopAppList {
             }
         }
         return reorderFrontmost(ordered, frontmostPID: frontmostPID)
+    }
+
+    /// Per-PID count of "real" windows: layer 0, windowID in `allowedWindowIDs`,
+    /// frame at least `minSize`, and intersecting `visibleBounds`. PIDs with no
+    /// qualifying window are absent from the result (no zero entries).
+    static func realWindowCounts(from windows: [RawAppWindow],
+                                 allowedWindowIDs: Set<CGWindowID>,
+                                 visibleBounds: CGRect,
+                                 minSize: CGSize) -> [pid_t: Int] {
+        var counts: [pid_t: Int] = [:]
+        for window in windows where window.layer == 0 {
+            guard let id = window.windowID, allowedWindowIDs.contains(id) else { continue }
+            guard window.frame.width >= minSize.width,
+                  window.frame.height >= minSize.height,
+                  window.frame.intersects(visibleBounds) else { continue }
+            counts[window.ownerPID, default: 0] += 1
+        }
+        return counts
     }
 
     private static func reorderFrontmost(_ ordered: [pid_t], frontmostPID: pid_t) -> [pid_t] {
