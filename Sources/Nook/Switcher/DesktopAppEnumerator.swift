@@ -35,8 +35,17 @@ enum DesktopAppEnumerator {
         // app whose only window on this Space is such a panel shows up with a
         // bogus preview and "selecting" it jumps to a real window on another
         // Space. Empty list for a PID => AX unavailable => not filtered.
-        let axFramesByPID = Dictionary(uniqueKeysWithValues:
-            orderedPIDs.map { ($0, MinimizedWindows.realWindowFrames(forPID: $0)) })
+        //
+        // AX geometry (kAXPosition/kAXSize) is only reliable for windows on the
+        // ACTIVE Space. For a non-current Space the values are stale/zeroed, so
+        // real off-Space windows would fail the match and be incorrectly dropped.
+        // Aux windows only appear on the active Space, so restricting the filter
+        // to the current Space still fixes the Chrome find-bar problem.
+        let isCurrentSpace = spaceID == CurrentSpace.id()
+        let axFramesByPID: [pid_t: [CGRect]]? = isCurrentSpace
+            ? Dictionary(uniqueKeysWithValues:
+                orderedPIDs.map { ($0, MinimizedWindows.realWindowFrames(forPID: $0)) })
+            : nil
         let realCounts = DesktopAppList.realWindowCounts(from: raw,
                                                          allowedWindowIDs: allowed,
                                                          visibleBounds: visibleBounds,
