@@ -15,7 +15,8 @@ enum DesktopAppEnumerator {
         // active, Cmd+H apps as parked. (No ghost detection on this rare path.)
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         let raw = onScreenWindows()
-        let pids = DesktopAppList.appPIDs(from: raw, frontmostPID: frontmostPID)
+        let pids = MRUOrder.ordered(DesktopAppList.appPIDs(from: raw, frontmostPID: frontmostPID),
+                                    byRecency: AppActivationTracker.shared.recency)
         let active = pids.compactMap { activeApp(pid: $0) }
         return active + parkedHiddenApps()
     }
@@ -26,9 +27,11 @@ enum DesktopAppEnumerator {
         let raw = allSpacesWindows()
         let allowed = WindowsOnSpace.windowIDs(on: spaceID)
         let visibleBounds = DisplayBounds.union()
-        let orderedPIDs = DesktopAppList.appPIDs(from: raw,
-                                                 frontmostPID: frontmostPID,
-                                                 allowedWindowIDs: allowed)
+        let orderedPIDs = MRUOrder.ordered(
+            DesktopAppList.appPIDs(from: raw,
+                                   frontmostPID: frontmostPID,
+                                   allowedWindowIDs: allowed),
+            byRecency: AppActivationTracker.shared.recency)
         // Authoritative real-window frames per candidate app (from AX). Used to
         // drop auxiliary layer-0 windows (browser find bars, bubbles) that pass
         // the size/Space filter but aren't real top-level windows — otherwise an

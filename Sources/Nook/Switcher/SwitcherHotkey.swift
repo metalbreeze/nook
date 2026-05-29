@@ -78,7 +78,6 @@ final class SwitcherHotkey {
         if type == .flagsChanged {
             if active && !cmdHeld {
                 active = false
-                Log.hotkey.notice("Cmd released -> commit")
                 fire(\.onCommit)
             }
             return Unmanaged.passUnretained(event) // never swallow modifier changes
@@ -89,7 +88,6 @@ final class SwitcherHotkey {
         if !active {
             if keyCode == Self.tabKeyCode && cmdHeld {
                 active = true
-                Log.hotkey.notice("Cmd+Tab -> open (suppressed)")
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }
@@ -97,7 +95,6 @@ final class SwitcherHotkey {
             // (Cmd+Shift+` = previous). Holding Cmd, the user can then Tab.
             if Self.backtickKeyCodes.contains(keyCode) && cmdHeld {
                 active = true
-                Log.hotkey.notice("Cmd+backtick -> open + desktop (suppressed)")
                 fire(\.onOpen)
                 fire(flags.contains(.maskShift) ? \.onDesktopPrev : \.onDesktopNext)
                 return nil
@@ -106,7 +103,6 @@ final class SwitcherHotkey {
         }
 
         // active
-        Log.hotkey.notice("active keyDown keyCode=\(keyCode, privacy: .public) shift=\(flags.contains(.maskShift), privacy: .public) ctrl=\(flags.contains(.maskControl), privacy: .public) cmd=\(cmdHeld, privacy: .public)")
         if keyCode == Self.tabKeyCode {
             if flags.contains(.maskShift) {
                 fire(\.onReverse)

@@ -47,11 +47,10 @@ enum WindowFocus {
               GetProcessForPID(pid, &psn) == noErr,
               let setFront = setFrontProcess,
               let postEvent = postEventRecord else {
-            Log.activate.notice("WindowFocus: SkyLight/PSN unavailable for pid=\(pid, privacy: .public) — AX fallback")
+            Log.activate.error("WindowFocus: SkyLight/PSN unavailable for pid=\(pid, privacy: .public) — AX fallback")
             WindowActivator.activate(info, pid: pid)
             return
         }
-        Log.activate.notice("WindowFocus.focus id=\(windowID, privacy: .public) pid=\(pid, privacy: .public)")
         // Make the owning process frontmost, tied to this specific window.
         _ = setFront(&psn, windowID, kCPSUserGenerated)
         // Synthesize the two SkyLight events that raise + key the window.

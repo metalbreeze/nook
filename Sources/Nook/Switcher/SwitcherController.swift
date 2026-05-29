@@ -153,7 +153,6 @@ final class SwitcherController {
         let target = model.desktops[index]
         if target.isPreviewed { return }            // already viewing it
 
-        Log.switcher.notice("previewDesktop -> idx \(index, privacy: .public) target=\(target.id, privacy: .public)")
         spaceID = target.id                          // rename target follows preview
         model.previewedSpaceID = target.id
         model.desktopName = nameStore.name(for: target.id)
@@ -179,7 +178,6 @@ final class SwitcherController {
     }
 
     func desktopNext() {
-        Log.switcher.notice("desktopNext model=\(self.model != nil, privacy: .public) renaming=\(self.model?.isRenaming ?? false, privacy: .public) desktops=\(self.model?.desktops.count ?? -1, privacy: .public)")
         guard let model, !model.isRenaming, model.desktops.count > 1 else { return }
         let currentIdx = model.desktops.firstIndex(where: { $0.isPreviewed }) ?? 0
         let next = SwitcherIndex.advance(currentIdx, count: model.desktops.count)
@@ -203,10 +201,6 @@ final class SwitcherController {
             realSpaceID: model.realSpaceID,
             previewedDisplayUUID: previewedUUID
         )
-        Log.switcher.notice("commit intent=\(String(describing: intent), privacy: .public) previewed=\(model.previewedSpaceID ?? 0, privacy: .public) real=\(model.realSpaceID ?? 0, privacy: .public) selectedApp=\(model.selectedAppIndex, privacy: .public) windowCount=\(model.windows.count, privacy: .public)")
-        for (i, w) in model.windows.enumerated() {
-            Log.switcher.notice("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
-        }
         let realSpace = model.realSpaceID
         switch intent {
         case .window(let index):
@@ -255,7 +249,6 @@ final class SwitcherController {
                              to target: CGSSpaceID,
                              then completion: @escaping () -> Void) {
         let total = SpaceKeySwitcher.steps(from: current, to: target)
-        Log.switcher.notice("switchSpace from=\(current, privacy: .public) to=\(target, privacy: .public) steps=\(total, privacy: .public)")
         guard total != 0 else { completion(); return }
         let rightward = total > 0
         let count = abs(total)
@@ -315,11 +308,7 @@ final class SwitcherController {
         Task { [weak self] in
             let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid,
                                                                           onSpace: spaceID)) ?? []
-            guard let self, self.generation == token, let model = self.model else {
-                Log.switcher.notice("loadWindows token=\(token, privacy: .public) DISCARDED (stale)")
-                return
-            }
-            Log.switcher.notice("loadWindows token=\(token, privacy: .public) pid=\(pid, privacy: .public) space=\(spaceID, privacy: .public) -> \(scWindows.count, privacy: .public) windows: \(scWindows.map { String($0.windowID) }.joined(separator: ","), privacy: .public)")
+            guard let self, self.generation == token, let model = self.model else { return }
             // Real windows first, minimized windows last.
             let ordered = scWindows.filter { !minimizedIDs.contains($0.windowID) }
                 + scWindows.filter { minimizedIDs.contains($0.windowID) }

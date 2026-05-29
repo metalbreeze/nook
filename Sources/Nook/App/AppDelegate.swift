@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startSwitcher() {
+        AppActivationTracker.shared.start()
         let hotkey = SwitcherHotkey()
         hotkey.onOpen = { [weak self] in self?.switcher.open() }
         hotkey.onAdvance = { [weak self] in self?.switcher.advance() }
