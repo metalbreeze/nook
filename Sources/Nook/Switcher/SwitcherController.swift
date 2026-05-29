@@ -131,8 +131,11 @@ final class SwitcherController {
         guard model.desktops.indices.contains(index) else { return }
         let target = model.desktops[index]
         if target.isReal { return }      // already on this desktop
+        let realSpace = model.realSpaceID
         close()
-        SpaceSwitcher.switchTo(spaceID: target.id, displayUUID: target.displayUUID)
+        if let realSpace {
+            switchSpace(from: realSpace, to: target.id, then: {})
+        }
     }
 
     /// Bracket-driven (and Cmd+Shift+digit-driven) preview: re-flags the chip
@@ -198,39 +201,68 @@ final class SwitcherController {
         for (i, w) in model.windows.enumerated() {
             Log.switcher.notice("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
         }
+        let realSpace = model.realSpaceID
         switch intent {
         case .window(let index):
             let win = model.windows[index]
+            let previewed = model.previewedSpaceID
             close()
-            activateChosenWindow(win)
-        case .switchSpace(let target, let uuid):
+            if let previewed, let realSpace, previewed != realSpace {
+                // Window lives on another desktop: step there first, then focus.
+                switchSpace(from: realSpace, to: previewed, then: { [weak self] in
+                    self?.activateChosenWindow(win)
+                })
+            } else {
+                activateChosenWindow(win)
+            }
+        case .switchSpace(let target, _):
             // model.windows holds the selected app's windows on the previewed
-            // Space; focusing its first window via SkyLight switches to that
-            // desktop AND raises the window in one animated step (the OS does
-            // the Space switch as a side effect of focusing the window).
+            // Space; step to that desktop, then focus its first window.
             let firstWindowOnTarget = model.windows.first
             let appPID: pid_t? = model.apps.indices.contains(model.selectedAppIndex)
                 ? model.apps[model.selectedAppIndex].pid
                 : nil
             close()
-            if let win = firstWindowOnTarget {
-                Log.switcher.notice("switchSpace via window id=\(win.windowID, privacy: .public) target=\(target, privacy: .public)")
-                activateChosenWindow(win)
-            } else if let pid = appPID {
-                // No window on the target Space (parked/empty): fall back to a
-                // bookkeeping Space switch and app activation.
-                Log.switcher.notice("switchSpace NO window; switchTo+activate pid=\(pid, privacy: .public) target=\(target, privacy: .public)")
-                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-                NSRunningApplication(processIdentifier: pid)?.activate()
-            } else {
-                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-            }
+            guard let realSpace else { return }
+            switchSpace(from: realSpace, to: target, then: { [weak self] in
+                guard let self else { return }
+                if let win = firstWindowOnTarget {
+                    self.activateChosenWindow(win)
+                } else if let pid = appPID {
+                    NSRunningApplication(processIdentifier: pid)?.activate()
+                }
+            })
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
             close()
             NSRunningApplication(processIdentifier: pid)?.activate()
         }
+    }
+
+    /// Switches the visible desktop from `current` to `target` by simulating the
+    /// Mission Control "move a space" shortcut the needed number of times (one
+    /// Ctrl+Arrow per adjacent space, spaced out for the animation), then runs
+    /// `completion` on the main queue once the target desktop is showing. If no
+    /// step is needed, `completion` runs immediately.
+    private func switchSpace(from current: CGSSpaceID,
+                             to target: CGSSpaceID,
+                             then completion: @escaping () -> Void) {
+        let total = SpaceKeySwitcher.steps(from: current, to: target)
+        Log.switcher.notice("switchSpace from=\(current, privacy: .public) to=\(target, privacy: .public) steps=\(total, privacy: .public)")
+        guard total != 0 else { completion(); return }
+        let rightward = total > 0
+        let count = abs(total)
+        func step(_ i: Int) {
+            if i >= count {
+                // Give the final animation a moment to settle before focusing.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: completion)
+                return
+            }
+            SpaceKeySwitcher.postStep(rightward: rightward)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) { step(i + 1) }
+        }
+        step(0)
     }
 
     func cancel() {
