@@ -235,24 +235,32 @@ final class SwitcherController {
         }
     }
 
-    /// Activates a window (or app) on `target` AFTER the asynchronous CGS Space
-    /// switch has landed. The switch is not instantaneous and — crucially — the
-    /// AX window list only exposes the app's windows on the *current* Space, so
-    /// raising the target window before the switch lands picks the wrong (old-
-    /// Space) window. Polls every 20ms until the active Space is `target` and the
-    /// window is visible to AX (or a ~1s safety timeout), then raises it.
+    /// Activates a window (or app) on `target` AFTER the CGS Space switch has
+    /// *visually* landed.
+    ///
+    /// Two traps make this subtle:
+    ///  1. `CGSGetActiveSpace` flips to the target instantly (bookkeeping), long
+    ///     before the switch animation finishes. Acting on that early raise
+    ///     interrupts the animation, stranding the window on the old desktop.
+    ///  2. `kAXWindowsAttribute` only lists windows on the *active* Space, so the
+    ///     target window can't be matched until the switch lands.
+    /// The robust signal for "visually landed" is the target window appearing in
+    /// CGWindowList's on-screen set. We also require a short settle floor so an
+    /// early on-screen flip during the animation can't fire us too soon. Polls
+    /// every 30ms up to a ~1.5s safety ceiling.
     private func raiseAfterSpaceSwitch(to target: CGSSpaceID,
                                        window: SwitcherWindow?,
                                        appPID: pid_t?,
                                        attempt: Int = 0) {
-        let maxAttempts = 50            // 50 * 20ms = 1s ceiling
+        let maxAttempts = 50            // 50 * 30ms = 1.5s ceiling
+        let settleFloor = 8             // 8 * 30ms = 240ms minimum before raising
         let landed = CurrentSpace.id() == target
-        let axReady: Bool = {
-            guard let window, !window.isMinimized else { return true }
-            return WindowActivator.axContainsWindow(pid: window.pid, windowID: window.windowID)
+        let visuallyReady: Bool = {
+            guard let window, !window.isMinimized else { return attempt >= 12 }
+            return WindowEnumerator.onScreenWindowIDs().contains(window.windowID)
         }()
-        if (landed && axReady) || attempt >= maxAttempts {
-            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) axReady=\(axReady, privacy: .public) attempt=\(attempt, privacy: .public)")
+        if (landed && visuallyReady && attempt >= settleFloor) || attempt >= maxAttempts {
+            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) visuallyReady=\(visuallyReady, privacy: .public) attempt=\(attempt, privacy: .public)")
             if let window {
                 activateChosenWindow(window)
             } else if let appPID {
@@ -260,7 +268,7 @@ final class SwitcherController {
             }
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
             self?.raiseAfterSpaceSwitch(to: target, window: window, appPID: appPID, attempt: attempt + 1)
         }
     }

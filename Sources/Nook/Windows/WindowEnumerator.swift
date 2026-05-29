@@ -69,6 +69,14 @@ enum WindowEnumerator {
                    appName: window.owningApplication?.applicationName ?? "")
     }
 
+    /// Window IDs visually on-screen right now (active Space). Reflects the
+    /// WindowServer's notion of what is displayed, so after a Space switch a
+    /// target window only appears here once the switch has *visually* landed —
+    /// used to wait out the switch animation before raising a window on it.
+    static func onScreenWindowIDs() -> Set<CGWindowID> {
+        currentSpaceWindowIDs()
+    }
+
     /// Window IDs that are on the CURRENT Space (active desktop).
     ///
     /// We use CGWindowList's `.optionOnScreenOnly` rather than `SCWindow.isOnScreen`
