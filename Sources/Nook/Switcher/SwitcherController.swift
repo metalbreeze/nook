@@ -45,9 +45,9 @@ final class SwitcherController {
     func advance() {
         guard let model, !model.isRenaming, !model.apps.isEmpty,
               let spaceID = model.previewedSpaceID else { return }
-        model.selectedAppIndex = nextNonHiddenIndex(in: model.apps,
-                                                    from: model.selectedAppIndex,
-                                                    forward: true)
+        model.selectedAppIndex = nextActiveIndex(in: model.apps,
+                                                 from: model.selectedAppIndex,
+                                                 forward: true)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
     }
@@ -55,27 +55,26 @@ final class SwitcherController {
     func reverse() {
         guard let model, !model.isRenaming, !model.apps.isEmpty,
               let spaceID = model.previewedSpaceID else { return }
-        model.selectedAppIndex = nextNonHiddenIndex(in: model.apps,
-                                                    from: model.selectedAppIndex,
-                                                    forward: false)
+        model.selectedAppIndex = nextActiveIndex(in: model.apps,
+                                                 from: model.selectedAppIndex,
+                                                 forward: false)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
     }
 
-    /// Tab navigation skips hidden apps (Cmd+H'd). Falls back to a normal
-    /// wrap-step if every app in the list is hidden.
-    private func nextNonHiddenIndex(in apps: [SwitcherApp],
-                                    from currentIndex: Int,
-                                    forward: Bool) -> Int {
+    /// Tab navigation skips parked apps. Falls back to a normal wrap-step if
+    /// every app in the list is parked.
+    private func nextActiveIndex(in apps: [SwitcherApp],
+                                 from currentIndex: Int,
+                                 forward: Bool) -> Int {
         guard !apps.isEmpty else { return currentIndex }
         var idx = currentIndex
         for _ in 0..<apps.count {
             idx = forward
                 ? SwitcherIndex.advance(idx, count: apps.count)
                 : SwitcherIndex.reverse(idx, count: apps.count)
-            if !apps[idx].isHidden { return idx }
+            if !apps[idx].isParked { return idx }
         }
-        // All hidden — accept the first wrap step.
         return forward
             ? SwitcherIndex.advance(currentIndex, count: apps.count)
             : SwitcherIndex.reverse(currentIndex, count: apps.count)
@@ -115,7 +114,7 @@ final class SwitcherController {
         guard let model, !model.isRenaming, model.windows.indices.contains(index) else { return }
         let win = model.windows[index]
         close()
-        WindowActivator.activate(win.info, pid: win.pid)
+        activateChosenWindow(win)
     }
 
     func selectWindow(number: Int) {
@@ -124,7 +123,7 @@ final class SwitcherController {
         guard model.windows.indices.contains(index) else { return }
         let win = model.windows[index]
         close()
-        WindowActivator.activate(win.info, pid: win.pid)
+        activateChosenWindow(win)
     }
 
     func clickDesktop(_ index: Int) {
@@ -198,7 +197,7 @@ final class SwitcherController {
         case .window(let index):
             let win = model.windows[index]
             close()
-            WindowActivator.activate(win.info, pid: win.pid)
+            activateChosenWindow(win)
         case .switchSpace(let target, let uuid):
             // Prefer AX-raising a specific window on the target desktop —
             // that's the same mechanism the .window case uses and it
@@ -262,10 +261,18 @@ final class SwitcherController {
         generation += 1
         let token = generation
         let pid = model.apps[appIndex].pid
-        // Keep the existing model.windows visible until the new fetch returns
-        // (the generation token discards stale async results). Clearing here
-        // used to make the VStack reflow vertically — a visible flicker on
-        // every Tab press.
+
+        // Minimized windows are synchronous (AX) and render as gray placeholders.
+        let minimized = MinimizedWindows.windows(forPID: pid).map { m in
+            SwitcherWindow(windowID: m.windowID, title: m.title,
+                           info: WindowInfo(windowID: m.windowID, title: m.title,
+                                            frame: m.frame, appName: m.appName),
+                           pid: pid, image: nil, isMinimized: true)
+        }
+        // Show minimized immediately so the row reflects the app even before
+        // the SC fetch lands; keep prior real windows visible until it does.
+        model.windows = model.windows.filter { !$0.isMinimized } + minimized
+
         Task { [weak self] in
             let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid,
                                                                           onSpace: spaceID)) ?? []
@@ -273,16 +280,26 @@ final class SwitcherController {
             var built: [SwitcherWindow] = scWindows.map { scWindow in
                 let info = WindowEnumerator.info(from: scWindow)
                 return SwitcherWindow(windowID: scWindow.windowID, title: info.title,
-                                      info: info, pid: pid, image: nil)
+                                      info: info, pid: pid, image: nil, isMinimized: false)
             }
-            model.windows = built
+            model.windows = built + minimized
             for (index, scWindow) in scWindows.enumerated() {
                 let image = try? await ThumbnailCapturer.capture(scWindow)
                 guard self.generation == token, let model = self.model,
                       built.indices.contains(index) else { return }
                 built[index].image = image
-                model.windows = built
+                model.windows = built + minimized
             }
+        }
+    }
+
+    /// Activate the chosen window: un-minimize if it's a minimized entry,
+    /// otherwise AX-raise it normally.
+    private func activateChosenWindow(_ win: SwitcherWindow) {
+        if win.isMinimized {
+            MinimizedWindows.restore(win.info, pid: win.pid)
+        } else {
+            WindowActivator.activate(win.info, pid: win.pid)
         }
     }
 
