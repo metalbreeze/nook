@@ -262,33 +262,33 @@ final class SwitcherController {
         let token = generation
         let pid = model.apps[appIndex].pid
 
-        // Minimized windows are synchronous (AX) and render as gray placeholders.
-        let minimized = MinimizedWindows.windows(forPID: pid).map { m in
-            SwitcherWindow(windowID: m.windowID, title: m.title,
-                           info: WindowInfo(windowID: m.windowID, title: m.title,
-                                            frame: m.frame, appName: m.appName),
-                           pid: pid, image: nil, isMinimized: true)
-        }
-        // Show minimized immediately so the row reflects the app even before
-        // the SC fetch lands; keep prior real windows visible until it does.
-        model.windows = model.windows.filter { !$0.isMinimized } + minimized
+        // Minimized (Cmd+M) windows of this app, as a windowID set. These also
+        // come back from ScreenCaptureKit below, so we TAG them rather than
+        // append a second copy (which double-counted the window row).
+        let minimizedIDs = Set(MinimizedWindows.windows(forPID: pid).map(\.windowID).filter { $0 != 0 })
 
         Task { [weak self] in
             let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid,
                                                                           onSpace: spaceID)) ?? []
             guard let self, self.generation == token, let model = self.model else { return }
-            var built: [SwitcherWindow] = scWindows.map { scWindow in
+            // Real windows first, minimized windows last.
+            let ordered = scWindows.filter { !minimizedIDs.contains($0.windowID) }
+                + scWindows.filter { minimizedIDs.contains($0.windowID) }
+            var built: [SwitcherWindow] = ordered.map { scWindow in
                 let info = WindowEnumerator.info(from: scWindow)
                 return SwitcherWindow(windowID: scWindow.windowID, title: info.title,
-                                      info: info, pid: pid, image: nil, isMinimized: false)
+                                      info: info, pid: pid, image: nil,
+                                      isMinimized: minimizedIDs.contains(scWindow.windowID))
             }
-            model.windows = built + minimized
-            for (index, scWindow) in scWindows.enumerated() {
+            model.windows = built
+            // Capture thumbnails only for non-minimized windows — minimized
+            // windows are off-screen and render as the gray placeholder.
+            for (index, scWindow) in ordered.enumerated() where !minimizedIDs.contains(scWindow.windowID) {
                 let image = try? await ThumbnailCapturer.capture(scWindow)
                 guard self.generation == token, let model = self.model,
                       built.indices.contains(index) else { return }
                 built[index].image = image
-                model.windows = built + minimized
+                model.windows = built
             }
         }
     }

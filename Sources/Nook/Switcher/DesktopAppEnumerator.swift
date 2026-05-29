@@ -37,17 +37,21 @@ enum DesktopAppEnumerator {
         var active: [SwitcherApp] = []
         var parked: [SwitcherApp] = []
         for pid in orderedPIDs {
+            // A Cmd+H'd app keeps its windows in the Space set (CGS still
+            // reports them), so realCount can be > 0 even while hidden. Read
+            // the real hidden state so such an app is parked, not active.
+            let isHidden = NSRunningApplication(processIdentifier: pid)?.isHidden ?? false
             let realCount = realCounts[pid] ?? 0
             let minimizedCount = realCount > 0 ? 0 : MinimizedWindows.count(forPID: pid)
             let input = WindowClassifier.ClassifierInput(pid: pid,
                                                          realWindowCount: realCount,
                                                          minimizedWindowCount: minimizedCount,
-                                                         isHidden: false)
+                                                         isHidden: isHidden)
             switch WindowClassifier.classify(input) {
             case .active:
                 if let app = activeApp(pid: pid) { active.append(app) }
             case .parked(let count):
-                if let app = parkedApp(pid: pid, windowCount: count, isHidden: false) {
+                if let app = parkedApp(pid: pid, windowCount: count, isHidden: isHidden) {
                     parked.append(app)
                 }
             }
