@@ -9,6 +9,10 @@ final class SwitcherController {
     private let nameStore = DesktopNameStore()
     private var spaceID: CGSSpaceID?
     var onDesktopRenamed: (() -> Void)?
+    /// Disable/enable Nook's own event tap while we synthesize the Mission
+    /// Control space-switch keystrokes, so our tap doesn't interfere with them.
+    var suspendHotkeyTap: (() -> Void)?
+    var resumeHotkeyTap: (() -> Void)?
 
     func open() {
         let apps = DesktopAppEnumerator.currentDesktopApps()
@@ -138,16 +142,18 @@ final class SwitcherController {
         }
     }
 
-    /// Bracket-driven (and Cmd+Shift+digit-driven) preview: re-flags the chip
-    /// row and reloads apps + windows for `target`, but does **not** call
-    /// `SpaceSwitcher.switchTo`. The actual Space switch happens on commit
-    /// (Cmd release) if `previewedSpaceID` still differs from `realSpaceID`.
+    /// Backtick-/digit-driven desktop navigation: moves the capsule and previews
+    /// the target desktop's apps/windows, but does NOT switch the desktop yet.
+    /// The real switch can't happen while Cmd is held (the held Cmd contaminates
+    /// the Ctrl+Arrow Mission Control shortcut), so it is deferred to commit
+    /// (Cmd release), when Ctrl+Arrow can be posted cleanly.
     private func previewDesktop(at index: Int) {
         guard let model, !model.isRenaming else { return }
         guard model.desktops.indices.contains(index) else { return }
         let target = model.desktops[index]
         if target.isPreviewed { return }            // already viewing it
 
+        Log.switcher.notice("previewDesktop -> idx \(index, privacy: .public) target=\(target.id, privacy: .public)")
         spaceID = target.id                          // rename target follows preview
         model.previewedSpaceID = target.id
         model.desktopName = nameStore.name(for: target.id)
@@ -159,7 +165,6 @@ final class SwitcherController {
                       isPreviewed: vm.id == target.id,
                       isReal: vm.isReal)
         }
-        Log.switcher.notice("previewDesktop target=\(target.id, privacy: .public) isReal=\(target.isReal, privacy: .public)")
         model.apps = DesktopAppEnumerator.appsOnSpace(target.id)
         model.selectedAppIndex = 0
         model.selectedWindowIndex = -1
@@ -254,16 +259,22 @@ final class SwitcherController {
         guard total != 0 else { completion(); return }
         let rightward = total > 0
         let count = abs(total)
+        suspendHotkeyTap?()       // get our own tap out of the way of the post
         func step(_ i: Int) {
             if i >= count {
                 // Give the final animation a moment to settle before focusing.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: completion)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.resumeHotkeyTap?()
+                    completion()
+                }
                 return
             }
             SpaceKeySwitcher.postStep(rightward: rightward)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) { step(i + 1) }
         }
-        step(0)
+        // Small settle so the just-released Cmd modifier is fully cleared before
+        // we synthesize the Ctrl+Arrow.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { step(0) }
     }
 
     func cancel() {

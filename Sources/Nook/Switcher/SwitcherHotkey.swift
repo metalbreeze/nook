@@ -93,6 +93,15 @@ final class SwitcherHotkey {
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }
+            // Cmd+` opens the panel AND moves to the next desktop in one press
+            // (Cmd+Shift+` = previous). Holding Cmd, the user can then Tab.
+            if Self.backtickKeyCodes.contains(keyCode) && cmdHeld {
+                active = true
+                Log.hotkey.notice("Cmd+backtick -> open + desktop (suppressed)")
+                fire(\.onOpen)
+                fire(flags.contains(.maskShift) ? \.onDesktopPrev : \.onDesktopNext)
+                return nil
+            }
             return Unmanaged.passUnretained(event)
         }
 
@@ -106,11 +115,14 @@ final class SwitcherHotkey {
             }
             return nil
         }
-        if keyCode == Self.leftKeyCode {
+        // Plain Left/Right select a window; Ctrl+Left/Right is the Mission
+        // Control "move a space" shortcut — we POST those ourselves to switch
+        // desktops, so let them pass through our own tap untouched.
+        if keyCode == Self.leftKeyCode && !flags.contains(.maskControl) {
             fire(\.onWindowLeft)
             return nil
         }
-        if keyCode == Self.rightKeyCode {
+        if keyCode == Self.rightKeyCode && !flags.contains(.maskControl) {
             fire(\.onWindowRight)
             return nil
         }
@@ -152,6 +164,12 @@ final class SwitcherHotkey {
     private func fire(_ keyPath: KeyPath<SwitcherHotkey, (() -> Void)?>) {
         let callback = self[keyPath: keyPath]
         DispatchQueue.main.async { callback?() }
+    }
+
+    /// Temporarily enable/disable the tap. Used to get our own tap out of the
+    /// way while we synthesize Mission Control space-switch keystrokes.
+    func setTapEnabled(_ enabled: Bool) {
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: enabled) }
     }
 
     func stop() {

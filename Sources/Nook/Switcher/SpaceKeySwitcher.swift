@@ -24,17 +24,29 @@ enum SpaceKeySwitcher {
         return ti - ci
     }
 
-    /// Posts one Ctrl+Arrow keystroke (rightward or leftward).
+    /// Posts `|delta|` Ctrl+Arrow keystrokes (rightward if delta > 0).
+    static func postSteps(_ delta: Int) {
+        guard delta != 0 else { return }
+        for _ in 0..<abs(delta) { postStep(rightward: delta > 0) }
+    }
+
+    /// Posts one Ctrl+Arrow keystroke by asking System Events to perform it.
+    /// `CGEventPost`-injected events are filtered out by WindowServer for Space
+    /// switching; routing the keystroke through System Events (an Apple process
+    /// Nook is authorized to control via the Automation TCC grant) injects it on
+    /// a path that may be honored. Requires the apple-events entitlement +
+    /// NSAppleEventsUsageDescription + the user's Automation approval.
     static func postStep(rightward: Bool) {
-        let key = rightward ? rightArrow : leftArrow
-        let src = CGEventSource(stateID: .combinedSessionState)
-        if let down = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: true) {
-            down.flags = .maskControl
-            down.post(tap: .cghidEventTap)
+        let code = rightward ? 124 : 123
+        let source = "tell application \"System Events\" to key code \(code) using control down"
+        guard let script = NSAppleScript(source: source) else {
+            Log.hotkey.error("SpaceKeySwitcher: could not build AppleScript")
+            return
         }
-        if let up = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: false) {
-            up.flags = .maskControl
-            up.post(tap: .cghidEventTap)
+        var err: NSDictionary?
+        script.executeAndReturnError(&err)
+        if let err {
+            Log.hotkey.error("SpaceKeySwitcher AppleScript error: \(err, privacy: .public)")
         }
     }
 

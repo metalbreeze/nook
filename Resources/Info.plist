@@ -20,5 +20,7 @@
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string></string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Nook switches desktops by asking System Events to perform the Mission Control "move a space" shortcut.</string>
 </dict>
 </plist>

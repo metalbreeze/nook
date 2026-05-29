@@ -81,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onCancel = { [weak self] in self?.switcher.cancel() }
         hotkey.onCommit = { [weak self] in self?.switcher.commit() }
         switcher.onDesktopRenamed = { [weak self] in self?.updateMenuBarTitle() }
+        switcher.suspendHotkeyTap = { [weak self] in self?.switcherHotkey?.setTapEnabled(false) }
+        switcher.resumeHotkeyTap = { [weak self] in self?.switcherHotkey?.setTapEnabled(true) }
         if !hotkey.start() {
             PermissionsManager.requestAccessibility()
         }
