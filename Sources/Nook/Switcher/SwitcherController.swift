@@ -198,90 +198,38 @@ final class SwitcherController {
         for (i, w) in model.windows.enumerated() {
             Log.switcher.notice("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
         }
-        // A window on a *different* (previewed) Space cannot be raised directly:
-        // kAXWindowsAttribute only ever lists the app's windows on the CURRENT
-        // Space, so the target-Space window is invisible to AX until we switch.
-        // Whenever the previewed Space differs from the real one we switch first,
-        // then raise the chosen window once it appears in AX.
-        let needsSpaceSwitch = model.previewedSpaceID != nil
-            && model.previewedSpaceID != model.realSpaceID
         switch intent {
         case .window(let index):
             let win = model.windows[index]
             close()
-            if needsSpaceSwitch, let target = model.previewedSpaceID, let uuid = previewedUUID {
-                Log.switcher.notice("window on previewed space \(target, privacy: .public) -> switch then raise id=\(win.windowID, privacy: .public)")
-                let oldOnScreen = WindowEnumerator.onScreenWindowIDs()
-                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-                raiseAfterSpaceSwitch(to: target, window: win, appPID: win.pid, oldOnScreen: oldOnScreen)
-            } else {
-                activateChosenWindow(win)
-            }
+            activateChosenWindow(win)
         case .switchSpace(let target, let uuid):
             // model.windows holds the selected app's windows on the previewed
-            // Space; its first entry is the window to raise once we land there.
+            // Space; focusing its first window via SkyLight switches to that
+            // desktop AND raises the window in one animated step (the OS does
+            // the Space switch as a side effect of focusing the window).
             let firstWindowOnTarget = model.windows.first
             let appPID: pid_t? = model.apps.indices.contains(model.selectedAppIndex)
                 ? model.apps[model.selectedAppIndex].pid
                 : nil
             close()
-            Log.switcher.notice("switchSpace target=\(target, privacy: .public) winID=\(firstWindowOnTarget?.windowID ?? 0, privacy: .public) appPID=\(appPID ?? 0, privacy: .public)")
-            let oldOnScreen = WindowEnumerator.onScreenWindowIDs()
-            SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-            raiseAfterSpaceSwitch(to: target, window: firstWindowOnTarget, appPID: appPID, oldOnScreen: oldOnScreen)
+            if let win = firstWindowOnTarget {
+                Log.switcher.notice("switchSpace via window id=\(win.windowID, privacy: .public) target=\(target, privacy: .public)")
+                activateChosenWindow(win)
+            } else if let pid = appPID {
+                // No window on the target Space (parked/empty): fall back to a
+                // bookkeeping Space switch and app activation.
+                Log.switcher.notice("switchSpace NO window; switchTo+activate pid=\(pid, privacy: .public) target=\(target, privacy: .public)")
+                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+                NSRunningApplication(processIdentifier: pid)?.activate()
+            } else {
+                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+            }
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
             close()
             NSRunningApplication(processIdentifier: pid)?.activate()
-        }
-    }
-
-    /// Activates a window (or app) on `target` AFTER the CGS Space switch has
-    /// fully, *visually* completed.
-    ///
-    /// Two traps make this subtle:
-    ///  1. `CGSGetActiveSpace` flips to the target instantly (bookkeeping), and
-    ///     during the slide BOTH desktops' windows are briefly on-screen — so
-    ///     neither "active space == target" nor "target window on-screen" means
-    ///     the animation is done. Raising mid-slide interrupts it, stranding the
-    ///     window on the old desktop (it vanishes on the next Space refresh).
-    ///  2. `kAXWindowsAttribute` only lists windows on the *active* Space, so the
-    ///     target window can't be matched until the switch lands.
-    /// The reliable "animation complete" signal is the OLD desktop's windows
-    /// having slid OFF-screen: we snapshot the on-screen set before switching and
-    /// wait until almost none of them remain on-screen (tolerating a couple of
-    /// all-Spaces/sticky windows), the active space is `target`, and the target
-    /// window is on-screen. Polls every 30ms up to a ~2s safety ceiling.
-    private func raiseAfterSpaceSwitch(to target: CGSSpaceID,
-                                       window: SwitcherWindow?,
-                                       appPID: pid_t?,
-                                       oldOnScreen: Set<CGWindowID>,
-                                       attempt: Int = 0) {
-        let maxAttempts = 66            // 66 * 30ms ≈ 2s ceiling
-        let targetWindowID = window?.windowID
-        let oldRef = oldOnScreen.subtracting(targetWindowID.map { [$0] } ?? [])
-        let current = WindowEnumerator.onScreenWindowIDs()
-        let oldRemaining = oldRef.intersection(current).count
-        // ≥80% of the old desktop's windows gone (tolerate ≤2 sticky windows).
-        let oldGone = oldRef.isEmpty || oldRemaining <= max(2, oldRef.count / 5)
-        let landed = CurrentSpace.id() == target
-        let targetVisible: Bool = {
-            guard let window, !window.isMinimized, let id = targetWindowID else { return true }
-            return current.contains(id)
-        }()
-        if (landed && oldGone && targetVisible) || attempt >= maxAttempts {
-            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) oldGone=\(oldGone, privacy: .public) oldRemaining=\(oldRemaining, privacy: .public)/\(oldRef.count, privacy: .public) targetVisible=\(targetVisible, privacy: .public) attempt=\(attempt, privacy: .public)")
-            if let window {
-                activateChosenWindow(window)
-            } else if let appPID {
-                NSRunningApplication(processIdentifier: appPID)?.activate()
-            }
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
-            self?.raiseAfterSpaceSwitch(to: target, window: window, appPID: appPID,
-                                        oldOnScreen: oldOnScreen, attempt: attempt + 1)
         }
     }
 
@@ -351,12 +299,13 @@ final class SwitcherController {
     }
 
     /// Activate the chosen window: un-minimize if it's a minimized entry,
-    /// otherwise AX-raise it normally.
+    /// otherwise focus it via SkyLight (raises it AND switches to its Space if
+    /// it lives on another desktop).
     private func activateChosenWindow(_ win: SwitcherWindow) {
         if win.isMinimized {
             MinimizedWindows.restore(win.info, pid: win.pid)
         } else {
-            WindowActivator.activate(win.info, pid: win.pid)
+            WindowFocus.focus(windowID: win.windowID, info: win.info, pid: win.pid)
         }
     }
 
