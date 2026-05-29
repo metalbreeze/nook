@@ -53,6 +53,22 @@ enum WindowActivator {
         Log.activate.notice("called NSRunningApplication.activate() pid=\(pid, privacy: .public)")
     }
 
+    /// Whether `windowID` is currently among the app's AX windows. Because
+    /// kAXWindowsAttribute only lists windows on the *active* Space, this returns
+    /// false for a window on another Space — used to wait until an off-Space
+    /// window becomes visible to AX after a Space switch before raising it.
+    static func axContainsWindow(pid: pid_t, windowID: CGWindowID) -> Bool {
+        guard windowID != kCGNullWindowID else { return false }
+        let appElement = AXUIElementCreateApplication(pid)
+        var windowsValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue) == .success,
+              let axWindows = windowsValue as? [AXUIElement] else { return false }
+        return axWindows.contains { axWin in
+            var wid: CGWindowID = 0
+            return _AXUIElementGetWindow(axWin, &wid) == .success && wid == windowID
+        }
+    }
+
     private static func axTitle(_ window: AXUIElement) -> String {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success,

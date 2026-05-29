@@ -198,45 +198,70 @@ final class SwitcherController {
         for (i, w) in model.windows.enumerated() {
             Log.switcher.notice("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
         }
+        // A window on a *different* (previewed) Space cannot be raised directly:
+        // kAXWindowsAttribute only ever lists the app's windows on the CURRENT
+        // Space, so the target-Space window is invisible to AX until we switch.
+        // Whenever the previewed Space differs from the real one we switch first,
+        // then raise the chosen window once it appears in AX.
+        let needsSpaceSwitch = model.previewedSpaceID != nil
+            && model.previewedSpaceID != model.realSpaceID
         switch intent {
         case .window(let index):
             let win = model.windows[index]
             close()
-            activateChosenWindow(win)
+            if needsSpaceSwitch, let target = model.previewedSpaceID, let uuid = previewedUUID {
+                Log.switcher.notice("window on previewed space \(target, privacy: .public) -> switch then raise id=\(win.windowID, privacy: .public)")
+                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+                raiseAfterSpaceSwitch(to: target, window: win, appPID: win.pid)
+            } else {
+                activateChosenWindow(win)
+            }
         case .switchSpace(let target, let uuid):
-            // Prefer AX-raising a specific window on the target desktop —
-            // that's the same mechanism the .window case uses and it
-            // reliably switches Space AND transfers frontmost-app focus
-            // (NSRunningApplication.activate from a LSUIElement process
-            // on macOS 14+ is not strong enough to dethrone the prior
-            // frontmost app). model.windows is the selected app's windows
-            // on the previewed Space, so its first entry is a valid pick
-            // when the async load has landed.
+            // model.windows holds the selected app's windows on the previewed
+            // Space; its first entry is the window to raise once we land there.
             let firstWindowOnTarget = model.windows.first
             let appPID: pid_t? = model.apps.indices.contains(model.selectedAppIndex)
                 ? model.apps[model.selectedAppIndex].pid
                 : nil
             close()
-            if let win = firstWindowOnTarget {
-                Log.switcher.notice("switchSpace via window id=\(win.windowID, privacy: .public) target=\(target, privacy: .public)")
-                WindowActivator.activate(win.info, pid: win.pid)
-            } else if let pid = appPID {
-                // Windows haven't loaded yet — best-effort: switch the
-                // Space and try to activate the app with the deprecated
-                // but still-functional ignoreOtherApps option.
-                Log.switcher.notice("switchSpace NO window loaded; switchTo+activate pid=\(pid, privacy: .public) target=\(target, privacy: .public)")
-                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-                NSRunningApplication(processIdentifier: pid)?
-                    .activate(options: [.activateIgnoringOtherApps])
-            } else {
-                Log.switcher.notice("switchSpace NO window/app; switchTo only target=\(target, privacy: .public)")
-                SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
-            }
+            Log.switcher.notice("switchSpace target=\(target, privacy: .public) winID=\(firstWindowOnTarget?.windowID ?? 0, privacy: .public) appPID=\(appPID ?? 0, privacy: .public)")
+            SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
+            raiseAfterSpaceSwitch(to: target, window: firstWindowOnTarget, appPID: appPID)
         case .app:
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
             close()
             NSRunningApplication(processIdentifier: pid)?.activate()
+        }
+    }
+
+    /// Activates a window (or app) on `target` AFTER the asynchronous CGS Space
+    /// switch has landed. The switch is not instantaneous and — crucially — the
+    /// AX window list only exposes the app's windows on the *current* Space, so
+    /// raising the target window before the switch lands picks the wrong (old-
+    /// Space) window. Polls every 20ms until the active Space is `target` and the
+    /// window is visible to AX (or a ~1s safety timeout), then raises it.
+    private func raiseAfterSpaceSwitch(to target: CGSSpaceID,
+                                       window: SwitcherWindow?,
+                                       appPID: pid_t?,
+                                       attempt: Int = 0) {
+        let maxAttempts = 50            // 50 * 20ms = 1s ceiling
+        let landed = CurrentSpace.id() == target
+        let axReady: Bool = {
+            guard let window, !window.isMinimized else { return true }
+            return WindowActivator.axContainsWindow(pid: window.pid, windowID: window.windowID)
+        }()
+        if (landed && axReady) || attempt >= maxAttempts {
+            Log.switcher.notice("raiseAfterSpaceSwitch fire landed=\(landed, privacy: .public) axReady=\(axReady, privacy: .public) attempt=\(attempt, privacy: .public)")
+            if let window {
+                activateChosenWindow(window)
+            } else if let appPID {
+                NSRunningApplication(processIdentifier: appPID)?.activate()
+            }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+            self?.raiseAfterSpaceSwitch(to: target, window: window, appPID: appPID, attempt: attempt + 1)
         }
     }
 
