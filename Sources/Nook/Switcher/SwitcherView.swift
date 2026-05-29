@@ -7,6 +7,7 @@ struct SwitcherView: View {
     let onBeginRename: (CGSSpaceID) -> Void
     let onFinishRename: (Bool, String) -> Void
     let onClickDesktop: (Int) -> Void
+    let onClickApp: (Int) -> Void
 
     @State private var editName: String = ""
     @FocusState private var nameFieldFocused: Bool
@@ -22,9 +23,10 @@ struct SwitcherView: View {
             VStack(spacing: 18) {
                 desktopRow
 
-                HStack(spacing: 16) {
+                HStack(alignment: .center, spacing: 16) {
                     ForEach(Array(model.apps.enumerated()), id: \.element.id) { index, app in
-                        appIcon(app, selected: index == model.selectedAppIndex)
+                        appIcon(app, selected: index == model.selectedAppIndex,
+                                onClick: { onClickApp(index) })
                     }
                 }
                 Text(selectedName)
@@ -132,7 +134,15 @@ struct SwitcherView: View {
     }
 
     @ViewBuilder
-    private func appIcon(_ app: SwitcherApp, selected: Bool) -> some View {
+    private func appIcon(_ app: SwitcherApp, selected: Bool, onClick: @escaping () -> Void) -> some View {
+        // Hidden apps render one size smaller, with a faint background and
+        // lower opacity, so they read as "parked, click to restore" and don't
+        // compete with the Tab-navigable visible apps.
+        let iconSize: CGFloat = app.isHidden ? 40 : 64
+        let pad: CGFloat = app.isHidden ? 8 : 10
+        let background: Color = app.isHidden
+            ? Color.white.opacity(0.08)
+            : (selected ? Color.white.opacity(0.25) : Color.clear)
         Group {
             if let image = app.icon {
                 Image(nsImage: image).resizable()
@@ -140,11 +150,13 @@ struct SwitcherView: View {
                 Image(systemName: "app.dashed").resizable().foregroundStyle(.white)
             }
         }
-        .frame(width: 64, height: 64)
-        .padding(10)
-        .background(selected ? Color.white.opacity(0.25) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .opacity(app.isHidden ? 0.45 : 1.0)   // dim hidden apps (Cmd+H)
+        .frame(width: iconSize, height: iconSize)
+        .padding(pad)
+        .background(background)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .opacity(app.isHidden ? 0.55 : 1.0)
+        .contentShape(Rectangle())
+        .onTapGesture { onClick() }
     }
 
     private func numberedTitle(_ win: SwitcherWindow, index: Int) -> String {

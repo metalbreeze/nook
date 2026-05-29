@@ -45,7 +45,9 @@ final class SwitcherController {
     func advance() {
         guard let model, !model.isRenaming, !model.apps.isEmpty,
               let spaceID = model.previewedSpaceID else { return }
-        model.selectedAppIndex = SwitcherIndex.advance(model.selectedAppIndex, count: model.apps.count)
+        model.selectedAppIndex = nextNonHiddenIndex(in: model.apps,
+                                                    from: model.selectedAppIndex,
+                                                    forward: true)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
     }
@@ -53,9 +55,41 @@ final class SwitcherController {
     func reverse() {
         guard let model, !model.isRenaming, !model.apps.isEmpty,
               let spaceID = model.previewedSpaceID else { return }
-        model.selectedAppIndex = SwitcherIndex.reverse(model.selectedAppIndex, count: model.apps.count)
+        model.selectedAppIndex = nextNonHiddenIndex(in: model.apps,
+                                                    from: model.selectedAppIndex,
+                                                    forward: false)
         model.selectedWindowIndex = -1
         loadWindows(forAppIndex: model.selectedAppIndex, onSpace: spaceID)
+    }
+
+    /// Tab navigation skips hidden apps (Cmd+H'd). Falls back to a normal
+    /// wrap-step if every app in the list is hidden.
+    private func nextNonHiddenIndex(in apps: [SwitcherApp],
+                                    from currentIndex: Int,
+                                    forward: Bool) -> Int {
+        guard !apps.isEmpty else { return currentIndex }
+        var idx = currentIndex
+        for _ in 0..<apps.count {
+            idx = forward
+                ? SwitcherIndex.advance(idx, count: apps.count)
+                : SwitcherIndex.reverse(idx, count: apps.count)
+            if !apps[idx].isHidden { return idx }
+        }
+        // All hidden — accept the first wrap step.
+        return forward
+            ? SwitcherIndex.advance(currentIndex, count: apps.count)
+            : SwitcherIndex.reverse(currentIndex, count: apps.count)
+    }
+
+    /// Mouse-click on an app icon: activate that app (un-hide first if it
+    /// was Cmd+H'd), close the overlay.
+    func clickApp(_ index: Int) {
+        guard let model, !model.isRenaming, model.apps.indices.contains(index) else { return }
+        let app = model.apps[index]
+        close()
+        guard let running = NSRunningApplication(processIdentifier: app.pid) else { return }
+        if app.isHidden { running.unhide() }
+        running.activate()
     }
 
     func windowLeft() {
@@ -270,7 +304,8 @@ final class SwitcherController {
             onClickWindow: { [weak self] index in self?.clickWindow(index) },
             onBeginRename: { [weak self] target in self?.beginRename(targetSpaceID: target) },
             onFinishRename: { [weak self] save, name in self?.finishRename(save: save, newName: name) },
-            onClickDesktop: { [weak self] index in self?.clickDesktop(index) }
+            onClickDesktop: { [weak self] index in self?.clickDesktop(index) },
+            onClickApp: { [weak self] index in self?.clickApp(index) }
         )
         let hosting = FirstMouseHostingView(rootView: root)
         hosting.frame = screen.frame

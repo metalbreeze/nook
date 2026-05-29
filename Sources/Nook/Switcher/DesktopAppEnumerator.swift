@@ -3,27 +3,28 @@ import CoreGraphics
 
 enum DesktopAppEnumerator {
     /// Apps with at least one normal window on the current desktop, current app
-    /// first, in window z-order, with hidden apps (Cmd+H) moved to the tail.
-    /// Excludes this process. No Screen Recording needed.
-    ///
-    /// Now a thin wrapper around `appsOnSpace(currentSpaceID)` so the hidden
-    /// app handling stays consistent between the current desktop and previewed
-    /// desktops. Falls back to the legacy `.optionOnScreenOnly` path if CGS
-    /// can't tell us the current Space (defensive — that path excludes hidden
-    /// apps, which mirrors what we did before).
+    /// first, in window z-order, with all hidden (Cmd+H) running apps appended
+    /// at the end. Excludes this process.
     static func currentDesktopApps() -> [SwitcherApp] {
         if let currentSpaceID = CurrentSpace.id() {
             return appsOnSpace(currentSpaceID)
         }
+        // Fallback when CGS can't tell us the current Space.
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         let raw = onScreenWindows()
         let pids = DesktopAppList.appPIDs(from: raw, frontmostPID: frontmostPID)
-        return hiddenLast(pids.compactMap(makeApp(pid:)))
+        let visible = pids.compactMap(makeApp(pid:)).filter { !$0.isHidden }
+        return visible + hiddenRunningApps()
     }
 
-    /// Apps with at least one normal window on `spaceID`, in window z-order,
-    /// with the current frontmost app first if it has a window there, and
-    /// hidden apps (Cmd+H) moved to the tail.
+    /// Apps with at least one normal window on `spaceID`, with the current
+    /// frontmost app first if it has a window there, plus all hidden (Cmd+H)
+    /// running apps appended at the end. Hidden apps are sourced from
+    /// `NSWorkspace.runningApplications` rather than per-Space CGS
+    /// enumeration — CGS sometimes doesn't report Spaces for windows of
+    /// hidden apps, so a Space-only path can drop them entirely. The view
+    /// renders the trailing hidden group differently so they don't visually
+    /// compete with the navigable visible group.
     static func appsOnSpace(_ spaceID: CGSSpaceID) -> [SwitcherApp] {
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         let raw = allSpacesWindows()
@@ -31,16 +32,27 @@ enum DesktopAppEnumerator {
         let pids = DesktopAppList.appPIDs(from: raw,
                                           frontmostPID: frontmostPID,
                                           allowedWindowIDs: allowed)
-        return hiddenLast(pids.compactMap(makeApp(pid:)))
+        let visibleOnSpace = pids.compactMap(makeApp(pid:)).filter { !$0.isHidden }
+        return visibleOnSpace + hiddenRunningApps()
     }
 
-    /// Stable partition: visible apps first (relative order preserved), then
-    /// hidden apps (relative order preserved). The frontmost reorder upstream
-    /// happens on the un-partitioned list, so if the macOS-frontmost app is
-    /// hidden, it lands at the head of the hidden segment rather than the
-    /// head of the whole list.
-    private static func hiddenLast(_ apps: [SwitcherApp]) -> [SwitcherApp] {
-        apps.filter { !$0.isHidden } + apps.filter { $0.isHidden }
+    /// All currently-hidden regular apps, sorted by name for a stable order.
+    /// They appear on every desktop's chip-row tail since their actual Space
+    /// affiliation is unreliable while hidden.
+    private static func hiddenRunningApps() -> [SwitcherApp] {
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+        return NSWorkspace.shared.runningApplications
+            .filter {
+                $0.isHidden &&
+                $0.activationPolicy == .regular &&
+                $0.processIdentifier > 0 &&
+                $0.processIdentifier != selfPID
+            }
+            .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
+            .map { SwitcherApp(pid: $0.processIdentifier,
+                               name: $0.localizedName ?? "",
+                               icon: $0.icon,
+                               isHidden: true) }
     }
 
     /// On-screen (current Space) windows, with off-screen mid-Space-switch
