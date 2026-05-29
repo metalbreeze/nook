@@ -75,7 +75,7 @@ final class SwitcherHotkey {
         if type == .flagsChanged {
             if active && !cmdHeld {
                 active = false
-                Log.hotkey.debug("Cmd released -> commit")
+                Log.hotkey.notice("Cmd released -> commit")
                 fire(\.onCommit)
             }
             return Unmanaged.passUnretained(event) // never swallow modifier changes
@@ -86,7 +86,7 @@ final class SwitcherHotkey {
         if !active {
             if keyCode == Self.tabKeyCode && cmdHeld {
                 active = true
-                Log.hotkey.debug("Cmd+Tab -> open (suppressed)")
+                Log.hotkey.notice("Cmd+Tab -> open (suppressed)")
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }

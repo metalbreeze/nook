@@ -156,7 +156,7 @@ final class SwitcherController {
                       isPreviewed: vm.id == target.id,
                       isReal: vm.isReal)
         }
-        Log.switcher.debug("previewDesktop target=\(target.id, privacy: .public) isReal=\(target.isReal, privacy: .public)")
+        Log.switcher.notice("previewDesktop target=\(target.id, privacy: .public) isReal=\(target.isReal, privacy: .public)")
         model.apps = DesktopAppEnumerator.appsOnSpace(target.id)
         model.selectedAppIndex = 0
         model.selectedWindowIndex = -1
@@ -194,9 +194,9 @@ final class SwitcherController {
             realSpaceID: model.realSpaceID,
             previewedDisplayUUID: previewedUUID
         )
-        Log.switcher.debug("commit intent=\(String(describing: intent), privacy: .public) previewed=\(model.previewedSpaceID ?? 0, privacy: .public) real=\(model.realSpaceID ?? 0, privacy: .public) selectedApp=\(model.selectedAppIndex, privacy: .public) windowCount=\(model.windows.count, privacy: .public)")
+        Log.switcher.notice("commit intent=\(String(describing: intent), privacy: .public) previewed=\(model.previewedSpaceID ?? 0, privacy: .public) real=\(model.realSpaceID ?? 0, privacy: .public) selectedApp=\(model.selectedAppIndex, privacy: .public) windowCount=\(model.windows.count, privacy: .public)")
         for (i, w) in model.windows.enumerated() {
-            Log.switcher.debug("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
+            Log.switcher.notice("  win[\(i, privacy: .public)] id=\(w.windowID, privacy: .public) pid=\(w.pid, privacy: .public) frame=\(w.info.frame.logDesc, privacy: .public) title=\(w.title, privacy: .public)")
         }
         switch intent {
         case .window(let index):
@@ -218,18 +218,18 @@ final class SwitcherController {
                 : nil
             close()
             if let win = firstWindowOnTarget {
-                Log.switcher.debug("switchSpace via window id=\(win.windowID, privacy: .public) target=\(target, privacy: .public)")
+                Log.switcher.notice("switchSpace via window id=\(win.windowID, privacy: .public) target=\(target, privacy: .public)")
                 WindowActivator.activate(win.info, pid: win.pid)
             } else if let pid = appPID {
                 // Windows haven't loaded yet — best-effort: switch the
                 // Space and try to activate the app with the deprecated
                 // but still-functional ignoreOtherApps option.
-                Log.switcher.debug("switchSpace NO window loaded; switchTo+activate pid=\(pid, privacy: .public) target=\(target, privacy: .public)")
+                Log.switcher.notice("switchSpace NO window loaded; switchTo+activate pid=\(pid, privacy: .public) target=\(target, privacy: .public)")
                 SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
                 NSRunningApplication(processIdentifier: pid)?
                     .activate(options: [.activateIgnoringOtherApps])
             } else {
-                Log.switcher.debug("switchSpace NO window/app; switchTo only target=\(target, privacy: .public)")
+                Log.switcher.notice("switchSpace NO window/app; switchTo only target=\(target, privacy: .public)")
                 SpaceSwitcher.switchTo(spaceID: target, displayUUID: uuid)
             }
         case .app:
@@ -279,10 +279,10 @@ final class SwitcherController {
             let scWindows = (try? await WindowEnumerator.filteredSCWindows(forPID: pid,
                                                                           onSpace: spaceID)) ?? []
             guard let self, self.generation == token, let model = self.model else {
-                Log.switcher.debug("loadWindows token=\(token, privacy: .public) DISCARDED (stale)")
+                Log.switcher.notice("loadWindows token=\(token, privacy: .public) DISCARDED (stale)")
                 return
             }
-            Log.switcher.debug("loadWindows token=\(token, privacy: .public) pid=\(pid, privacy: .public) space=\(spaceID, privacy: .public) -> \(scWindows.count, privacy: .public) windows: \(scWindows.map { String($0.windowID) }.joined(separator: ","), privacy: .public)")
+            Log.switcher.notice("loadWindows token=\(token, privacy: .public) pid=\(pid, privacy: .public) space=\(spaceID, privacy: .public) -> \(scWindows.count, privacy: .public) windows: \(scWindows.map { String($0.windowID) }.joined(separator: ","), privacy: .public)")
             // Real windows first, minimized windows last.
             let ordered = scWindows.filter { !minimizedIDs.contains($0.windowID) }
                 + scWindows.filter { minimizedIDs.contains($0.windowID) }
