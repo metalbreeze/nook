@@ -91,14 +91,9 @@ final class SwitcherHotkey {
                 fire(\.onOpen)
                 return nil // suppress system Cmd+Tab
             }
-            // Cmd+` opens the panel AND moves to the next desktop in one press
-            // (Cmd+Shift+` = previous). Holding Cmd, the user can then Tab.
-            if Self.backtickKeyCodes.contains(keyCode) && cmdHeld {
-                active = true
-                fire(\.onOpen)
-                fire(flags.contains(.maskShift) ? \.onDesktopPrev : \.onDesktopNext)
-                return nil
-            }
+            // When the panel is closed, leave Cmd+` alone so macOS's native
+            // "cycle windows of the front app" keeps working. Cmd+` only drives
+            // desktop navigation once the panel is open (handled below).
             return Unmanaged.passUnretained(event)
         }
 
