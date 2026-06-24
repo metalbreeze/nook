@@ -24,8 +24,15 @@ final class WindowClassifierTests: XCTestCase {
                        .active)
     }
 
-    func test_onlyMinimizedWindows_isActive() {
-        XCTAssertEqual(WindowClassifier.classify(input(real: 0, minimized: 1, hidden: false)),
+    func test_onlyMinimizedWindows_isParkedWithCount() {
+        // An app whose windows on this desktop are all minimized / hidden parks
+        // at the end, badged with how many it has stashed.
+        XCTAssertEqual(WindowClassifier.classify(input(real: 0, minimized: 2, hidden: false)),
+                       .parked(windowCount: 2))
+    }
+
+    func test_hasRealWindows_evenWithMinimized_isActive() {
+        XCTAssertEqual(WindowClassifier.classify(input(real: 1, minimized: 3, hidden: false)),
                        .active)
     }
 

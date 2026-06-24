@@ -182,4 +182,49 @@ final class DesktopAppListTests: XCTestCase {
                                                      axFramesByPID: nil)
         XCTAssertEqual(counts[10], 1)
     }
+
+    // --- requireOnScreen (current-desktop minimized/hidden exclusion) ---
+
+    func test_realWindowCounts_requireOnScreen_excludesOffScreenWindow() {
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [
+            win(10, onScreen: true,  windowID: 101, frame: frame),
+            win(20, onScreen: false, windowID: 201, frame: frame), // minimized/hidden
+        ]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [101, 201],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     requireOnScreen: true)
+        XCTAssertEqual(counts[10], 1)
+        XCTAssertNil(counts[20]) // off-screen window not counted as real
+    }
+
+    func test_realWindowCounts_withoutRequireOnScreen_countsOffScreen() {
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [win(20, onScreen: false, windowID: 201, frame: frame)]
+        let counts = DesktopAppList.realWindowCounts(from: input,
+                                                     allowedWindowIDs: [201],
+                                                     visibleBounds: bigBounds,
+                                                     minSize: minWin,
+                                                     requireOnScreen: false)
+        XCTAssertEqual(counts[20], 1) // other-desktop preview still counts it
+    }
+
+    // --- offScreenWindowCounts (parked badge) ---
+
+    func test_offScreenWindowCounts_countsOnlyOffScreenAllowedSized() {
+        let big = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let input = [
+            win(10, onScreen: false, windowID: 101, frame: big),   // off-screen, counts
+            win(10, onScreen: true,  windowID: 102, frame: big),   // on-screen, excluded
+            win(10, onScreen: false, windowID: 103, frame: CGRect(x: 0, y: 0, width: 10, height: 10)), // too small
+            win(10, onScreen: false, windowID: 104, frame: big),   // not in allowed set
+        ]
+        let counts = DesktopAppList.offScreenWindowCounts(from: input,
+                                                          allowedWindowIDs: [101, 102, 103],
+                                                          visibleBounds: bigBounds,
+                                                          minSize: minWin)
+        XCTAssertEqual(counts[10], 1) // only windowID 101 qualifies
+    }
 }

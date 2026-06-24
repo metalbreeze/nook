@@ -49,11 +49,22 @@ enum DesktopAppEnumerator {
             ? Dictionary(uniqueKeysWithValues:
                 orderedPIDs.map { ($0, MinimizedWindows.realWindowFrames(forPID: $0)) })
             : nil
+        // On the current desktop, a "real" (active) window must be ON-SCREEN —
+        // off-screen layer-0 windows are minimized / app-hidden (e.g. Telegram,
+        // which hides without kAXMinimized) and must park, not count as active.
         let realCounts = DesktopAppList.realWindowCounts(from: raw,
                                                          allowedWindowIDs: allowed,
                                                          visibleBounds: visibleBounds,
                                                          minSize: minWindowSize,
-                                                         axFramesByPID: axFramesByPID)
+                                                         axFramesByPID: axFramesByPID,
+                                                         requireOnScreen: isCurrentSpace)
+        // Off-screen (minimized/hidden) window counts for the badge on parked apps.
+        let offScreenCounts: [pid_t: Int] = isCurrentSpace
+            ? DesktopAppList.offScreenWindowCounts(from: raw,
+                                                   allowedWindowIDs: allowed,
+                                                   visibleBounds: visibleBounds,
+                                                   minSize: minWindowSize)
+            : [:]
 
         var active: [SwitcherApp] = []
         var parked: [SwitcherApp] = []
@@ -63,7 +74,11 @@ enum DesktopAppEnumerator {
             // the real hidden state so such an app is parked, not active.
             let isHidden = NSRunningApplication(processIdentifier: pid)?.isHidden ?? false
             let realCount = realCounts[pid] ?? 0
-            let minimizedCount = realCount > 0 ? 0 : MinimizedWindows.count(forPID: pid)
+            // Badge = off-screen windows on this desktop (Telegram-style hide)
+            // OR AX-minimized windows, whichever is larger.
+            let minimizedCount = realCount > 0
+                ? 0
+                : max(offScreenCounts[pid] ?? 0, MinimizedWindows.count(forPID: pid))
             let input = WindowClassifier.ClassifierInput(pid: pid,
                                                          realWindowCount: realCount,
                                                          minimizedWindowCount: minimizedCount,
@@ -176,7 +191,12 @@ enum DesktopAppEnumerator {
                 .flatMap { CGRect(dictionaryRepresentation: $0) } ?? .zero
             let windowID: CGWindowID? = (info[kCGWindowNumber as String] as? NSNumber)
                 .map { CGWindowID($0.uint32Value) }
-            return RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: true,
+            // Real on-screen state: a window currently displayed on the active
+            // desktop is on-screen; minimized / app-hidden / other-desktop
+            // windows are not. Lets the current-desktop "real window" check
+            // exclude minimized windows that stay layer-0 + Space-attributed.
+            let onScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            return RawAppWindow(ownerPID: pid, layer: layer, isOnScreen: onScreen,
                                 windowID: windowID, frame: frame)
         }
     }

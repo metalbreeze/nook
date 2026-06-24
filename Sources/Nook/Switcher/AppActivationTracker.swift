@@ -27,8 +27,16 @@ final class AppActivationTracker {
     @objc private func didActivate(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         else { return }
-        let pid = app.processIdentifier
-        guard pid != selfPID else { return }   // don't let Nook pollute the order
+        recordActivation(app.processIdentifier)
+    }
+
+    /// Move `pid` to the front of the recency list. Called both from the
+    /// NSWorkspace notification (native switches) and explicitly when Nook
+    /// activates an app/window — Nook focuses via SkyLight, which does not
+    /// reliably post the activation notification, so without this the MRU order
+    /// wouldn't update for Nook-initiated switches.
+    func recordActivation(_ pid: pid_t) {
+        guard pid != selfPID, pid > 0 else { return }   // don't let Nook pollute the order
         recency.removeAll { $0 == pid }
         recency.insert(pid, at: 0)
     }
