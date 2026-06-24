@@ -90,6 +90,7 @@ final class SwitcherController {
         guard let model, !model.isRenaming, model.apps.indices.contains(index) else { return }
         let app = model.apps[index]
         close()
+        AppActivationTracker.shared.recordActivation(app.pid)
         guard let running = NSRunningApplication(processIdentifier: app.pid) else { return }
         if app.isHidden { running.unhide() }
         running.activate()
@@ -229,6 +230,7 @@ final class SwitcherController {
                 if let win = firstWindowOnTarget {
                     self.activateChosenWindow(win)
                 } else if let pid = appPID {
+                    AppActivationTracker.shared.recordActivation(pid)
                     NSRunningApplication(processIdentifier: pid)?.activate()
                 }
             })
@@ -236,6 +238,7 @@ final class SwitcherController {
             guard model.apps.indices.contains(model.selectedAppIndex) else { close(); return }
             let pid = model.apps[model.selectedAppIndex].pid
             close()
+            AppActivationTracker.shared.recordActivation(pid)
             NSRunningApplication(processIdentifier: pid)?.activate()
         }
     }
@@ -335,6 +338,7 @@ final class SwitcherController {
     /// otherwise focus it via SkyLight (raises it AND switches to its Space if
     /// it lives on another desktop).
     private func activateChosenWindow(_ win: SwitcherWindow) {
+        AppActivationTracker.shared.recordActivation(win.pid)
         if win.isMinimized {
             MinimizedWindows.restore(win.info, pid: win.pid)
         } else {

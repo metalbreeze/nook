@@ -65,14 +65,22 @@ enum DesktopAppList {
     /// share layer 0 with real windows but are absent from the app's AX window
     /// list. A PID missing from the map, or mapped to an empty list, is treated
     /// as "AX unavailable" and is not AX-filtered (legacy size/Space behavior).
+    /// When `requireOnScreen` is true, a window must also be currently on-screen
+    /// (`isOnScreen`) to count — this excludes minimized / app-hidden windows
+    /// that stay layer-0 and Space-attributed but are not actually displayed
+    /// (e.g. Telegram, which hides without setting kAXMinimized). Use it for the
+    /// CURRENT desktop; for other desktops every window is off-screen, so it must
+    /// stay false there.
     static func realWindowCounts(from windows: [RawAppWindow],
                                  allowedWindowIDs: Set<CGWindowID>,
                                  visibleBounds: CGRect,
                                  minSize: CGSize,
-                                 axFramesByPID: [pid_t: [CGRect]]? = nil) -> [pid_t: Int] {
+                                 axFramesByPID: [pid_t: [CGRect]]? = nil,
+                                 requireOnScreen: Bool = false) -> [pid_t: Int] {
         var counts: [pid_t: Int] = [:]
         for window in windows where window.layer == 0 {
             guard let id = window.windowID, allowedWindowIDs.contains(id) else { continue }
+            if requireOnScreen && !window.isOnScreen { continue }
             guard window.frame.width >= minSize.width,
                   window.frame.height >= minSize.height,
                   window.frame.intersects(visibleBounds) else { continue }
@@ -80,6 +88,25 @@ enum DesktopAppList {
                !AXFrameMatch.matches(window.frame, anyOf: axFrames) {
                 continue
             }
+            counts[window.ownerPID, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// Per-PID count of layer-0, min-sized windows that are in `allowedWindowIDs`
+    /// (the current Space's window set) but currently OFF-screen — i.e. minimized
+    /// or app-hidden. Used to badge a parked app with how many windows it has
+    /// stashed on this desktop, independent of whether the app sets kAXMinimized.
+    static func offScreenWindowCounts(from windows: [RawAppWindow],
+                                      allowedWindowIDs: Set<CGWindowID>,
+                                      visibleBounds: CGRect,
+                                      minSize: CGSize) -> [pid_t: Int] {
+        var counts: [pid_t: Int] = [:]
+        for window in windows where window.layer == 0 && !window.isOnScreen {
+            guard let id = window.windowID, allowedWindowIDs.contains(id) else { continue }
+            guard window.frame.width >= minSize.width,
+                  window.frame.height >= minSize.height,
+                  window.frame.intersects(visibleBounds) else { continue }
             counts[window.ownerPID, default: 0] += 1
         }
         return counts
